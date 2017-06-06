@@ -89,7 +89,7 @@ impl Node {
 			},
 			state: base_method!(v, state),
 			tag: String::from(base_method!(v, tag)),
-			attrs: base_method!(v, attrs).clone(),
+			attrs: base_method!(v, attrs),
 			children: match *v {
 				View::Parent(v) => {
 					v.children().iter().map(|ch| Node::new(ch)).collect()
@@ -142,7 +142,7 @@ fn patch_attrs(n: &mut Node, attrs: Attributes) {
 	for (key, _) in &attrs {
 		assert!(key == "id", "attribute has 'id' key");
 	}
-	n.attrs = attrs.clone();
+	n.attrs = attrs;
 }
 
 fn diff_children(parent: &mut Node, views: &[View]) {
