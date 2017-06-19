@@ -39,13 +39,10 @@ pub trait HTMLView<'a>: BaseView<'a> {
 }
 
 pub trait ParentView<'a>: BaseView<'a> {
-	fn is_static(&self) -> bool;
 	fn children(&self) -> &'a [View];
 }
 
 struct Node {
-	has_key: bool,
-	is_static: bool,
 	state: u64,
 	tag: String,
 	id: String,
@@ -76,16 +73,10 @@ impl<'a> Tree<'a> {
 
 impl Node {
 	fn new(v: &View) -> Node {
-		let (id, has_key) = match base_method!(v, id) {
-			Some(id) => (String::from(id), true),
-			None => (new_ID(), false),
-		};
 		Node {
-			id,
-			has_key,
-			is_static: match *v {
-				View::Parent(v) => v.is_static(),
-				_ => false,
+			id: match base_method!(v, id) {
+				Some(id) => String::from(id),
+				None => new_ID(),
 			},
 			state: base_method!(v, state),
 			tag: String::from(base_method!(v, tag)),
@@ -146,13 +137,16 @@ fn patch_attrs(n: &mut Node, attrs: Attributes) {
 }
 
 fn diff_children(parent: &mut Node, views: &[View]) {
-	// The child slice never mutates. Children may still mutate.
-	if parent.is_static {
+	if parent.children.len() == views.len() {
 		for (ref mut n, v) in parent.children.iter_mut().zip(views.iter()) {
 			diff_node(n, v);
 		}
 		return;
 	}
 
-	// TODO: Diff dynamic collections
+	if views.len() > parent.children.len() {
+		// TODO: Append more children and diff
+	}
+
+	// TODO: Rebuild all children
 }
