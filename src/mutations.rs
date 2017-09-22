@@ -138,7 +138,7 @@ mod externs {
 	}
 
 	mod ffi {
-		use libc::*;
+		use std::os::raw::c_char;
 
 		// Define external functions for writing to the DOM
 		macro_rules! define_writers {
