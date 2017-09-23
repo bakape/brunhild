@@ -45,6 +45,17 @@ macro_rules! render_text {
 }
 
 impl Node {
+	// Create a text Node
+	pub fn text<T: Into<String>>(text: T) -> Node {
+		let mut attrs = Attrs::new();
+		attrs.insert(String::from("_text"), Some(text.into()));
+		Node {
+			tag: String::from("_text"),
+			attrs,
+			children: Vec::new(),
+		}
+	}
+
 	// Renders Node and subtree to HTML
 	pub fn render(&self) -> String {
 		let mut w = String::with_capacity(1 << 10);
