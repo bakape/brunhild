@@ -1,4 +1,4 @@
-use mutations::{append, remove, set_outer_html};
+use mutations::{append, remove, remove_attr, set_attr, set_outer_html};
 use std::collections::BTreeMap;
 use std::fmt::Write;
 
@@ -15,7 +15,7 @@ pub fn new_id() -> String {
 pub type Attrs = BTreeMap<String, Option<String>>;
 
 // Represents an HTML Node
-#[derive(Clone, Default)]
+#[derive(Default)]
 pub struct Node {
 	// HTML tag of the node
 	pub tag: String,
@@ -29,7 +29,7 @@ pub struct Node {
 
 impl Node {
 	// Renders Node and subtree to HTML.
-	// You can persist Saved and later use the diff() method to update the DOM
+	// You can persist Saved and later use the patch() method to update the DOM
 	// patch the created DOM subtree.
 	pub fn render(&self) -> (String, Saved) {
 		let mut w = String::with_capacity(1 << 10);
@@ -112,21 +112,51 @@ impl Saved {
 			return;
 		}
 
-		self.diff_attrs(&node.attrs);
-		self.diff_children(&node.children);
+		self.patch_attrs(&node.attrs);
+		self.patch_children(&node.children);
 	}
 
-	fn diff_attrs(&mut self, attrs: &Attrs) {
+	pub fn patch_attrs(&mut self, attrs: &Attrs) {
 		if self.attrs == *attrs {
 			return;
 		}
 
-		// TODO: Diff and apply new arguments to element
+		// Attributes added or changed
+		for (k, v) in attrs.iter() {
+			let need_set = match self.attrs.get(k) {
+				Some(original_v) => original_v != v,
+				None => true,
+			};
+			if need_set {
+				set_attr(
+					&self.id,
+					k,
+					match *v {
+						Some(ref v) => Some(&v),
+						None => None,
+					},
+				);
+				self.attrs.insert(k.clone(), v.clone());
+			}
+		}
 
-		self.attrs = attrs.clone();
+		// Attributes removed
+		let mut to_remove = Vec::<String>::new();
+		for (k, _) in self.attrs.iter_mut() {
+			match attrs.get(k) {
+				Some(_) => (),
+				None => {
+					remove_attr(&self.id, &k);
+					to_remove.push(k.clone());
+				}
+			};
+		}
+		for k in to_remove.iter() {
+			self.attrs.remove(k);
+		}
 	}
 
-	fn diff_children(&mut self, children: &[Node]) {
+	fn patch_children(&mut self, children: &[Node]) {
 		let mut diff = (children.len() as i32) - (self.children.len() as i32);
 
 		// Remove Nodes from the end

@@ -23,8 +23,55 @@ enum MutationData {
 	set_inner_html(String),
 	set_outer_html(String),
 
+	set_attr(String, Option<String>),
+	remove_attr(String),
+
 	// Remove node
 	remove,
+}
+
+pub fn set_attr(id: &str, key: &str, val: Option<&str>) {
+	push_mutation(
+		id,
+		MutationData::set_attr(
+			String::from(key),
+			match val {
+				Some(v) => Some(String::from(v)),
+				None => None,
+			},
+		),
+	);
+}
+
+pub fn set_inner_html(parent_id: &str, html: &str) {
+	with_mutations(|m| {
+		// This will make any previous inner changes to the element obsolete, so
+		// they can be filtered
+		m.retain(|m| {
+			m.id != parent_id ||
+				match m.data {
+					MutationData::set_attr(_, _) |
+					MutationData::remove_attr(_) => true,
+					_ => false,
+				}
+		});
+
+		m.push(Mutation {
+			id: String::from(parent_id),
+			data: MutationData::set_inner_html(String::from(html)),
+		});
+	});
+}
+
+// TODO: Make this different from the above, once we have attribute mutators
+pub fn set_outer_html(parent_id: &str, html: &str) {
+	with_mutations(|m| {
+		m.retain(|m| m.id != parent_id);
+		m.push(Mutation {
+			id: String::from(parent_id),
+			data: MutationData::set_outer_html(String::from(html)),
+		})
+	});
 }
 
 macro_rules! define_mutators {
@@ -37,30 +84,26 @@ macro_rules! define_mutators {
 	)
 }
 
-define_mutators!(
-	set_outer_html,
-	set_inner_html,
-	append,
-	prepend,
-	before,
-	after
-);
+define_mutators!(append, prepend, before, after, remove_attr);
 
 // Remove a node by ID
 pub fn remove(id: &str) {
-	push_mutation(id, MutationData::remove);
+	with_mutations(|m| {
+		m.retain(|m| m.id != id);
+		m.push(Mutation {
+			id: String::from(id),
+			data: MutationData::remove,
+		});
+	});
 }
 
 // Push mutation to the stack to be executed on RAF
 fn push_mutation(id: &str, data: MutationData) {
-	// TODO: Intelligently deduplicate repeated set_inner_html and
-	// set_outer_html. Will need to include checks for null elements in all
-	// operations.
 	with_mutations(|m| {
 		m.push(Mutation {
 			id: String::from(id),
 			data: data,
-		})
+		});
 	});
 }
 
@@ -80,17 +123,21 @@ pub extern "C" fn flush_mutations() {
 		for mutation in mutations.iter() {
 			let id = &mutation.id;
 			match mutation.data {
-				MutationData::append(ref html) => externs::append(id, &html),
-				MutationData::prepend(ref html) => externs::prepend(id, &html),
-				MutationData::before(ref html) => externs::before(id, &html),
-				MutationData::after(ref html) => externs::after(id, &html),
+				MutationData::append(ref html) => externs::append(id, html),
+				MutationData::prepend(ref html) => externs::prepend(id, html),
+				MutationData::before(ref html) => externs::before(id, html),
+				MutationData::after(ref html) => externs::after(id, html),
 				MutationData::set_inner_html(ref html) => {
-					externs::set_inner_html(id, &html)
+					externs::set_inner_html(id, html)
 				}
 				MutationData::set_outer_html(ref html) => {
-					externs::set_outer_html(id, &html)
+					externs::set_outer_html(id, html)
 				}
 				MutationData::remove => externs::remove(id),
+				MutationData::set_attr(ref k, ref v) => {
+					externs::set_attr(id, k, v)
+				}
+				MutationData::remove_attr(ref k) => externs::remove_attr(id, k),
 			};
 		}
 		mutations.truncate(0);
@@ -128,6 +175,28 @@ mod externs {
 		})
 	}
 
+	pub fn remove_attr(id: &str, key: &str) {
+		to_C_string!(id, {
+			to_C_string!(key, {
+				unsafe { ffi::remove_attr(id, key) };
+			})
+		})
+	}
+
+	pub fn set_attr(id: &str, key: &str, val: &Option<String>) {
+		let mut _val = match *val {
+			Some(ref v) => v.clone(),
+			None => String::new(),
+		};
+		to_C_string!(id, {
+			to_C_string!(key, {
+				to_C_string!(_val, {
+					unsafe { ffi::set_attr(id, key, _val) };
+				})
+			})
+		})
+	}
+
 	// Returns the inner HTML of an element by ID.
 	// If no element found, an empty String is returned.
 	// Usage of this function will cause extra repaints, so use sparingly.
@@ -160,6 +229,12 @@ mod externs {
 
 		extern "C" {
 			pub fn remove(id: *const c_char);
+			pub fn remove_attr(id: *const c_char, key: *const c_char);
+			pub fn set_attr(
+				id: *const c_char,
+				key: *const c_char,
+				val: *const c_char,
+			);
 			pub fn get_inner_html(id: *const c_char) -> *mut c_char;
 		}
 	}

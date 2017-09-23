@@ -2,14 +2,16 @@
 
 mergeInto(LibraryManager.library, {
 	set_outer_html: function (id, html) {
-		document.getElementById(Pointer_stringify(id))
-			.outerHTML = Pointer_stringify(html)
-		return
+		var el = document.getElementById(Pointer_stringify(id))
+		if (el) {
+			el.outerHTML = Pointer_stringify(html)
+		}
 	},
 	set_inner_html: function (id, html) {
-		document.getElementById(Pointer_stringify(id))
-			.innerHTML = Pointer_stringify(html)
-		return
+		var el = document.getElementById(Pointer_stringify(id))
+		if (el) {
+			el.innerHTML = Pointer_stringify(html)
+		}
 	},
 	get_inner_html: function (id) {
 		var el = document.getElementById(Pointer_stringify(id))
@@ -20,27 +22,53 @@ mergeInto(LibraryManager.library, {
 		return buf
 	},
 	append: function (id, html) {
+		var el = document.getElementById(Pointer_stringify(id))
+		if (!el) {
+			return
+		}
 		var cont = document.createElement('div')
 		cont.innerHTML = Pointer_stringify(html)
-		document.getElementById(Pointer_stringify(id))
-			.appendChild(cont.firstChild)
+		el.appendChild(cont.firstChild)
 	},
 	prepend: function (id, html) {
+		var el = document.getElementById(Pointer_stringify(id))
+		if (!el) {
+			return
+		}
 		var cont = document.createElement('div')
 		cont.innerHTML = Pointer_stringify(html)
-		var el = document.getElementById(Pointer_stringify(id))
 		el.insertBefore(cont.firstChild, el.firstChild)
 	},
 	before: function (id, html) {
+		var el = document.getElementById(Pointer_stringify(id))
+		if (!el) {
+			return
+		}
 		var cont = document.createElement('div')
 		cont.innerHTML = Pointer_stringify(html)
-		var el = document.getElementById(Pointer_stringify(id))
 		el.parentNode.insertBefore(cont.firstChild, el)
 	},
 	after: function (id, html) {
+		var el = document.getElementById(Pointer_stringify(id))
+		if (!el) {
+			return
+		}
 		var cont = document.createElement('div')
 		cont.innerHTML = Pointer_stringify(html)
-		var el = document.getElementById(Pointer_stringify(id))
 		el.parentNode.insertBefore(cont.firstChild, el.nextSibling)
+	},
+	set_attr: function (id, key, val) {
+		var el = document.getElementById(Pointer_stringify(id))
+		if (!el) {
+			return
+		}
+		el.setAttribute(Pointer_stringify(key), Pointer_stringify(val))
+	},
+	remove_attr: function (id, key) {
+		var el = document.getElementById(Pointer_stringify(id))
+		if (!el) {
+			return
+		}
+		el.removeAttribute(Pointer_stringify(key))
 	}
 })
