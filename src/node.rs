@@ -27,16 +27,70 @@ pub struct Node {
 	pub children: Vec<Node>,
 }
 
+// Detect and render a text node as a special case
+macro_rules! render_text {
+	($self:expr, $w:expr) => (
+		if $self.tag == "_text" {
+			match $self.attrs.get("_text") {
+				Some(t) => {
+					match *t {
+						Some(ref t) => return $w.push_str(t),
+						_ => (),
+					}
+				}
+				_ => (),
+			}
+		}
+	)
+}
+
 impl Node {
+	// Renders Node and subtree to HTML
+	pub fn render(&self) -> String {
+		let mut w = String::with_capacity(1 << 10);
+		self.write_html(&mut w);
+		return w;
+	}
+
+	fn write_html(&self, w: &mut String) {
+		render_text!(self, w);
+		render_start(&self.tag, &self.attrs, w);
+		w.push('>');
+
+		for n in self.children.iter() {
+			n.write_html(w);
+		}
+
+		write!(w, "</{}>", self.tag).unwrap();
+	}
+
 	// Renders Node and subtree to HTML.
-	// You can persist Saved and later use the patch() method to update the DOM
-	// patch the created DOM subtree.
-	pub fn render(&self) -> (String, Saved) {
+	// You can persist Saved and later use the patch() method to patch the
+	// created DOM subtree.
+	pub fn render_virtual(&self) -> (String, Saved) {
 		let mut w = String::with_capacity(1 << 10);
 		let saved = Saved::new(self);
 		saved.render(&mut w);
 		return (w, saved);
 	}
+}
+
+// Renders the start of the element.
+// Returns, if one of the attributes was an "id".
+fn render_start(tag: &str, attrs: &Attrs, w: &mut String) -> bool {
+	write!(w, "<{}", tag).unwrap();
+
+	let mut has_id = false;
+	for (ref key, val) in attrs.iter() {
+		if *key == "id" {
+			has_id = true;
+		}
+		write!(w, " {}", key).unwrap();
+		if let &Some(ref val) = val {
+			write!(w, "=\"{}\"", &val).unwrap();
+		}
+	}
+	has_id
 }
 
 // Contains a node already rendered in the DOM. Used for persisting the state
@@ -69,17 +123,9 @@ impl Saved {
 
 	// Write the Node and its subtree as HTML
 	fn render(&self, w: &mut String) {
-		if self.tag == "_text" {
-			let b = self.attrs.get("_text").unwrap();
-			return w.push_str(b.clone().unwrap().as_str());
-		}
-
-		write!(w, "<{} id=\"bh-{}\"", self.tag, self.id).unwrap();
-		for (ref key, val) in self.attrs.iter() {
-			write!(w, " {}", key).unwrap();
-			if let &Some(ref val) = val {
-				write!(w, "=\"{}\"", &val).unwrap();
-			}
+		render_text!(self, w);
+		if !render_start(&self.tag, &self.attrs, w) {
+			write!(w, " id=\"{}\"", self.id).unwrap();
 		}
 		w.push('>');
 
