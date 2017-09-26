@@ -57,6 +57,12 @@ mergeInto(LibraryManager.library, {
 		cont.innerHTML = Pointer_stringify(html)
 		el.parentNode.insertBefore(cont.firstChild, el.nextSibling)
 	},
+	remove: function (id) {
+		var el = document.getElementById(Pointer_stringify(id))
+		if (!el) {
+			el.remove()
+		}
+	},
 	set_attr: function (id, key, val) {
 		var el = document.getElementById(Pointer_stringify(id))
 		if (!el) {
@@ -70,5 +76,38 @@ mergeInto(LibraryManager.library, {
 			return
 		}
 		el.removeAttribute(Pointer_stringify(key))
+	},
+	register_listener: function (typ, selector) {
+		if (!window.__bh_handlers) {
+			window.__bh_handlers = {}
+		}
+
+		var type = Pointer_stringify(typ)
+		var sel = Pointer_stringify(selector)
+		var delegate_event = Module.cwrap(
+			"delegate_event",
+			null,
+			["string", "string", "string"],
+		);
+		var handler = window.__bh_handlers[type + ":" + sel] = function (e) {
+			var el = e.target
+			if (sel && !(el.matches && el.matches(sel))) {
+				return
+			}
+			var attrs = {}
+			for (var i = 0; i < el.attributes.length; i++) {
+				var attr = el.attributes[i]
+				attrs[attr.name] = attr.value
+			}
+			delegate_event(type, sel, JSON.stringify(attrs))
+		}
+
+		document.addEventListener(type, handler, { passive: true })
+	},
+	unregister_listener: function (typ, selector) {
+		var type = Pointer_stringify(typ)
+		var key = type + ":" + Pointer_stringify(selector)
+		document.removeEventListener(type, window.__bh_handlers[key])
+		delete window.__bh_handlers[key]
 	}
 })
