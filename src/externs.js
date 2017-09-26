@@ -87,7 +87,7 @@ mergeInto(LibraryManager.library, {
 		var delegate_event = Module.cwrap(
 			"delegate_event",
 			null,
-			["string", "string", "string"],
+			["string", "string", "string"]
 		);
 		var handler = window.__bh_handlers[type + ":" + sel] = function (e) {
 			var el = e.target
