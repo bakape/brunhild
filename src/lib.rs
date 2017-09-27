@@ -1,12 +1,11 @@
 extern crate libc;
 extern crate serde_json;
-extern crate serde;
 
 #[macro_use]
 mod externs;
 mod mutations;
 mod node;
-mod events;
+pub mod events;
 
 pub use self::events::*;
 pub use self::mutations::*;
