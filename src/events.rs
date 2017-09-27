@@ -101,8 +101,9 @@ extern "C" {
 }
 
 // Route a caught event from the JS side
-#[allow(dead_code)]
-extern "C" fn delegate_event(
+#[no_mangle]
+#[doc(hidden)]
+pub extern "C" fn delegate_event(
 	typ: *mut c_char,
 	selector: *mut c_char,
 	attrs: *mut c_char,
