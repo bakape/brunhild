@@ -1,3 +1,4 @@
+use ffi::{from_borrowed_string, to_borrowed_string};
 use node::Attrs;
 use serde_json;
 use std::borrow::BorrowMut;
@@ -5,7 +6,6 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::ffi::CString;
 use std::os::raw::c_char;
-use std::ptr::null_mut;
 
 static mut HANDLER_ID: u64 = 0;
 thread_local!{
@@ -60,12 +60,9 @@ pub fn add_listener(typ: &str, selector: &str, handler: Handler) -> u64 {
 		}
 	});
 
-	to_C_string!(typ, {
-		to_C_string!(selector, {
-			unsafe { register_listener(typ, selector) };
-		});
-	});
-
+	unsafe {
+		register_listener(to_borrowed_string(typ), to_borrowed_string(selector))
+	};
 	id
 }
 
@@ -104,25 +101,21 @@ extern "C" {
 #[no_mangle]
 #[doc(hidden)]
 pub extern "C" fn delegate_event(
-	typ: *mut c_char,
-	selector: *mut c_char,
-	attrs: *mut c_char,
+	typ: *const c_char,
+	selector: *const c_char,
+	attrs: *const c_char,
 ) {
 	let key = Key {
-		event_type: from_C_string!(typ),
-		selector: if selector != null_mut() {
-			from_C_string!(selector)
-		} else {
-			String::new()
-		},
+		event_type: String::from(from_borrowed_string(typ)),
+		selector: String::from(from_borrowed_string(selector)),
 	};
 	with_events(|e| match e.get(&key) {
 		None => {
 			panic!(format!("inconsistent event key: {:?}", key));
 		}
 		Some(vals) => {
-			let attrs: Attrs = serde_json::from_str(&from_C_string!(attrs))
-				.unwrap();
+			let attrs: Attrs =
+				serde_json::from_str(from_borrowed_string(attrs)).unwrap();
 			for v in vals {
 				(v.handler)(&attrs);
 			}
