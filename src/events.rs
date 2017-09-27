@@ -62,7 +62,7 @@ pub fn add_listener(typ: &str, selector: &str, handler: Handler) -> u64 {
 
 	to_C_string!(typ, {
 		to_C_string!(selector, {
-			unsafe { register_handler(typ, selector) };
+			unsafe { register_listener(typ, selector) };
 		});
 	});
 
@@ -86,7 +86,7 @@ pub fn remove_listener(id: u64) {
 						CString::new(key.event_type.clone()).unwrap().as_ptr();
 					let c_selector =
 						CString::new(key.selector.clone()).unwrap().as_ptr();
-					unsafe { unregister_handler(c_type, c_selector) };
+					unsafe { unregister_listener(c_type, c_selector) };
 				}
 
 				retain
@@ -96,8 +96,8 @@ pub fn remove_listener(id: u64) {
 }
 
 extern "C" {
-	fn register_handler(typ: *const c_char, selector: *const c_char);
-	fn unregister_handler(typ: *const c_char, selector: *const c_char);
+	fn register_listener(typ: *const c_char, selector: *const c_char);
+	fn unregister_listener(typ: *const c_char, selector: *const c_char);
 }
 
 // Route a caught event from the JS side
