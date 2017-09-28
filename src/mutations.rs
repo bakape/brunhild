@@ -145,19 +145,19 @@ pub extern "C" fn flush_mutations() {
 }
 
 mod externs {
-	use ffi::{from_owned_string, to_borrowed_string};
+	use ffi::from_owned_string;
+	use std::ffi::CString;
 
 	// Define functions for writing to the DOM
 	macro_rules! define_writers {
 		( $( $id:ident ),* ) => (
 			$(
 				pub fn $id(id: &str, html: &str) {
-					unsafe {
-						ffi::$id(
-							to_borrowed_string(id),
-							to_borrowed_string(html),
-						)
-					};
+					as_c_string!(id, {
+						as_c_string!(html, {
+							unsafe { ffi::$id(id, html) };
+						});
+					});
 				}
 			)*
 		)
@@ -173,34 +173,38 @@ mod externs {
 	);
 
 	pub fn remove(id: &str) {
-		unsafe { ffi::remove(to_borrowed_string(id)) };
+		as_c_string!(id, {
+			unsafe { ffi::remove(id) };
+		});
 	}
 
 	pub fn remove_attr(id: &str, key: &str) {
-		unsafe {
-			ffi::remove_attr(to_borrowed_string(id), to_borrowed_string(key))
-		};
+		as_c_string!(id, {
+			as_c_string!(key, {
+				unsafe { ffi::remove_attr(id, key) };
+			});
+		});
 	}
 
 	pub fn set_attr(id: &str, key: &str, val: &Option<String>) {
-		let _val = match *val {
+		let _val = CString::new(match *val {
 			Some(ref v) => v,
 			None => "",
-		};
-		unsafe {
-			ffi::set_attr(
-				to_borrowed_string(id),
-				to_borrowed_string(key),
-				to_borrowed_string(_val),
-			)
-		};
+		}).unwrap();
+		as_c_string!(id, {
+			as_c_string!(key, {
+				unsafe { ffi::set_attr(id, key, _val.as_ptr()) };
+			});
+		});
 	}
 
 	// Returns the inner HTML of an element by ID.
 	// If no element found, an empty String is returned.
 	// Usage of this function will cause extra repaints, so use sparingly.
 	pub fn get_inner_html(id: &str) -> String {
-		let s = unsafe { ffi::get_inner_html(to_borrowed_string(id)) };
+		let s = as_c_string!(id, {
+			unsafe { ffi::get_inner_html(id) }
+		});
 		from_owned_string(s)
 	}
 

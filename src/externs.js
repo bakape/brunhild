@@ -16,6 +16,7 @@ mergeInto(LibraryManager.library, {
 	get_inner_html: function (id) {
 		var el = document.getElementById(Pointer_stringify(id))
 		var s = el ? el.innerHTML : ""
+		console.log(Pointer_stringify(id))
 		var len = s.length + 1
 		var buf = Module._malloc(len)
 		stringToUTF8(s, buf, len)

@@ -1,6 +1,7 @@
 extern crate libc;
 extern crate serde_json;
 
+#[macro_use]
 pub mod ffi;
 mod mutations;
 mod node;

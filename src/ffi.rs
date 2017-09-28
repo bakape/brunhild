@@ -12,7 +12,17 @@ pub fn from_owned_string(s: *mut c_char) -> String {
 	unsafe { CString::from_raw(s) }.into_string().unwrap()
 }
 
-// Cast to "borrowed" C string. Rust retains the ownership of the source.
-pub fn to_borrowed_string<T: Into<Vec<u8>>>(s: T) -> *const c_char {
-	CString::new(s).unwrap().as_ptr()
+// Cast to C string and execute with, while keeping the same variable name.
+// Needed to make sure the string is not dropped before the C function returns.
+#[macro_export]
+macro_rules! as_c_string {
+	( $var:ident, $fn:expr ) => (
+		{
+			let $var = ::std::ffi::CString::new($var).unwrap();
+			{
+				let $var = $var.as_ptr();
+				$fn
+			}
+		}
+	)
 }

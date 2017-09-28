@@ -1,4 +1,4 @@
-use ffi::{from_borrowed_string, to_borrowed_string};
+use ffi::from_borrowed_string;
 use node::Attrs;
 use serde_json;
 use std::borrow::BorrowMut;
@@ -60,9 +60,11 @@ pub fn add_listener(typ: &str, selector: &str, handler: Handler) -> u64 {
 		}
 	});
 
-	unsafe {
-		register_listener(to_borrowed_string(typ), to_borrowed_string(selector))
-	};
+	as_c_string!(typ, {
+		as_c_string!(selector, {
+			unsafe { register_listener(typ, selector) };
+		});
+	});
 	id
 }
 
