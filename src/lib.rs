@@ -1,27 +1,19 @@
-extern crate libc;
-extern crate serde_json;
+mod utils;
 
-#[macro_use]
-pub mod ffi;
-mod mutations;
-mod node;
-pub mod events;
+use wasm_bindgen::prelude::*;
 
-pub use self::events::*;
-pub use self::mutations::*;
-pub use self::node::{Attrs, Node, new_id};
+// When the `wee_alloc` feature is enabled, use `wee_alloc` as the global
+// allocator.
+#[cfg(feature = "wee_alloc")]
+#[global_allocator]
+static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
 
-// Register flush_mutations() with emscripten event loop
-pub fn start() {
-	unsafe {
-		emscripten_set_main_loop(mutations::flush_mutations, 0, 0);
-	}
+#[wasm_bindgen]
+extern {
+    fn alert(s: &str);
 }
 
-extern "C" {
-	pub fn emscripten_set_main_loop(
-		func: extern "C" fn(),
-		fps: libc::c_int,
-		infinite: libc::c_int,
-	);
+#[wasm_bindgen]
+pub fn greet() {
+    alert("Hello, brunhild!");
 }
