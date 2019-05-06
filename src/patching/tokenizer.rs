@@ -97,19 +97,23 @@ impl Registry {
 
 	// Convert string to token
 	fn tokenize(&mut self, s: &str) -> u64 {
-		if s.len() <= 15 {
-			self.small.tokenize(ArrayString::new(s))
-		} else {
-			self.large.tokenize(String::from(s))
+		match s.len() {
+			0 => 0, // Don't store empty strings
+			1...15 => self.small.tokenize(ArrayString::new(s)),
+			_ => self.large.tokenize(String::from(s)),
 		}
 	}
 
 	// Lookup string by token and write it to w
 	fn write_str<W: fmt::Write>(&self, k: u64, w: &mut W) -> fmt::Result {
-		if k & (1 << 63) == 0 {
-			self.small.write_str(k, w)
+		if k == 0 {
+			Ok(())
 		} else {
-			self.large.write_str(k, w)
+			if k & (1 << 63) == 0 {
+				self.small.write_str(k, w)
+			} else {
+				self.large.write_str(k, w)
+			}
 		}
 	}
 }

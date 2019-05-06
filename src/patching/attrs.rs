@@ -1,4 +1,49 @@
+use super::tokenizer::tokenize;
+use super::util;
 use std::collections::BTreeMap;
+
+// Attribute keys that have limited set of values and thus can have their
+// values tokenized.
+// Sorted for binary search.
+//
+// Sourced from:
+// https://developer.mozilla.org/en-US/docs/Web/HTML/Attributes
+static TOKENIZABLE_VALUES: [&'static str; 34] = [
+	"async",
+	"autocapitalize",
+	"autocomplete",
+	"autofocus",
+	"autoplay",
+	"checked",
+	"contenteditable",
+	"controls",
+	"crossorigin",
+	"decoding",
+	"defer",
+	"dir",
+	"disabled",
+	"draggable",
+	"dropzone",
+	"hidden",
+	"language",
+	"loop",
+	"method",
+	"multiple",
+	"muted",
+	"novalidate",
+	"open",
+	"preload",
+	"readonly",
+	"referrerpolicy",
+	"required",
+	"reversed",
+	"sandbox",
+	"selected",
+	"spellcheck",
+	"translate",
+	"type",
+	"wrap",
+];
 
 // Compressed attribute storage with manipulation functions
 pub struct Attrs {
@@ -19,25 +64,28 @@ enum Value {
 }
 
 impl Attrs {
-	fn new() -> Self {
-		Attrs {
+	pub fn new() -> Self {
+		Self {
 			map: BTreeMap::new(),
 		}
 	}
 
 	// Sets an attribute value of a Node.
-	// Setting element id attributes is not supported and results in a panic.
-	//
-	// # Panics
-	//
-	// Panics if key="id"
-	fn set(key: &str, val: &str) {
-		if key == "id" {
-			panic!("setting element id is not supported");
-		}
-
-		// TODO: If passed a "class", forward to class setting method
-
-		unimplemented!()
+	// Setting element id attributes is not supported and does nothing.
+	pub fn set(&mut self, key: &str, val: &str) {
+		match key {
+			"id" => (),
+			// TODO: If passed a "class", forward to class setting method
+			"class" => unimplemented!(),
+			_ => {
+				self.map.insert(
+					tokenize(key),
+					match TOKENIZABLE_VALUES.binary_search(&key) {
+						Ok(_) => Value::StringToken(tokenize(val)),
+						_ => Value::Untokenized(String::from(val)),
+					},
+				);
+			}
+		};
 	}
 }
