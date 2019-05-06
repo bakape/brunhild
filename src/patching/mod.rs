@@ -22,6 +22,11 @@ impl Appender {
 			self.buffers.push(String::with_capacity(cap * 2));
 		}
 	}
+
+	// Dump all partial buffers into whole string
+	pub fn dump(&mut self) -> String {
+		self.buffers.concat()
+	}
 }
 
 impl fmt::Write for Appender {
