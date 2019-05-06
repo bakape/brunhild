@@ -1,7 +1,13 @@
+use super::util;
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::convert::AsRef;
 use std::fmt;
 use std::hash::Hash;
+
+thread_local! {
+	static REGISTRY: RefCell<Registry> = RefCell::new(Registry::new());
+}
 
 // Storage for small (len <= 15) strings without allocating extra heap memory
 #[derive(PartialEq, Eq, Hash, Clone)]
@@ -11,7 +17,7 @@ struct ArrayString {
 }
 
 impl ArrayString {
-	pub fn new(s: &str) -> Self {
+	fn new(s: &str) -> Self {
 		let mut arr: [u8; 15] = Default::default();
 		arr.copy_from_slice(s.as_bytes());
 		Self {
@@ -42,7 +48,7 @@ struct ValueMap<V: Value> {
 }
 
 impl<V: Value> ValueMap<V> {
-	pub fn new(mask_high_bit: bool) -> Self {
+	fn new(mask_high_bit: bool) -> Self {
 		ValueMap {
 			mask_high_bit: mask_high_bit,
 			forward: HashMap::new(),
@@ -51,7 +57,7 @@ impl<V: Value> ValueMap<V> {
 	}
 
 	// Get key token for a string, registering a new token, if not found.
-	pub fn get_id(&mut self, v: V) -> u64 {
+	fn tokenize(&mut self, v: V) -> u64 {
 		if let Some(id) = self.inverted.get(&v) {
 			return *id;
 		}
@@ -69,8 +75,8 @@ impl<V: Value> ValueMap<V> {
 		return k;
 	}
 
-	// Lookup string by key and write it to w
-	pub fn write_str<W: fmt::Write>(&self, k: u64, w: &mut W) -> fmt::Result {
+	// Lookup string by token and write it to w
+	fn write_str<W: fmt::Write>(&self, k: u64, w: &mut W) -> fmt::Result {
 		w.write_str(self.forward.get(&k).unwrap().as_ref())
 	}
 }
@@ -89,21 +95,31 @@ impl Registry {
 		}
 	}
 
-	// Get key for string
-	pub fn get_id(&mut self, s: &str) -> u64 {
+	// Convert string to token
+	fn tokenize(&mut self, s: &str) -> u64 {
 		if s.len() <= 15 {
-			self.small.get_id(ArrayString::new(s))
+			self.small.tokenize(ArrayString::new(s))
 		} else {
-			self.large.get_id(String::from(s))
+			self.large.tokenize(String::from(s))
 		}
 	}
 
-	// Lookup string by key and write it to w
-	pub fn write_str<W: fmt::Write>(&self, k: u64, w: &mut W) -> fmt::Result {
+	// Lookup string by token and write it to w
+	fn write_str<W: fmt::Write>(&self, k: u64, w: &mut W) -> fmt::Result {
 		if k & (1 << 63) == 0 {
 			self.small.write_str(k, w)
 		} else {
 			self.large.write_str(k, w)
 		}
 	}
+}
+
+// Convert string to token
+pub fn tokenize(s: &str) -> u64 {
+	util::with_global(&REGISTRY, |r| r.tokenize(s))
+}
+
+// Lookup string by token and write it to w
+pub fn write_str<W: fmt::Write>(k: u64, w: &mut W) -> fmt::Result {
+	util::with_global(&REGISTRY, |r| r.write_str(k, w))
 }

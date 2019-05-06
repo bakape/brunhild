@@ -1,3 +1,4 @@
+use std::borrow::BorrowMut;
 use std::fmt;
 
 // Efficient append-only string builder for reducing reallocations
@@ -37,4 +38,15 @@ impl fmt::Write for Appender {
 		self.assert_cap(1);
 		self.buffers.last_mut().unwrap().write_char(c)
 	}
+}
+
+// Run function with global variable mutable access
+pub fn with_global<F, R, G>(
+	global: &'static std::thread::LocalKey<std::cell::RefCell<G>>,
+	func: F,
+) -> R
+where
+	F: FnOnce(&mut G) -> R,
+{
+	global.with(|r| func(r.borrow_mut().borrow_mut()))
 }
