@@ -62,7 +62,7 @@ impl<V: Value> ValueMap<V> {
 			ID_COUNTER
 		};
 		if self.mask_high_bit {
-			k |= (1 << 16);
+			k |= (1 << 63);
 		}
 		self.forward.insert(k, v.clone());
 		self.inverted.insert(v, k);
@@ -100,7 +100,7 @@ impl Registry {
 
 	// Lookup string by key and write it to w
 	pub fn write_str<W: fmt::Write>(&self, k: u64, w: &mut W) -> fmt::Result {
-		if k & (1 << 16) == 0 {
+		if k & (1 << 63) == 0 {
 			self.small.write_str(k, w)
 		} else {
 			self.large.write_str(k, w)
