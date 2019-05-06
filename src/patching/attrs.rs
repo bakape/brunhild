@@ -1,6 +1,7 @@
 use super::tokenizer::tokenize;
 use super::util;
 use std::collections::BTreeMap;
+use std::fmt;
 
 // Attribute keys that have limited set of values and thus can have their
 // values tokenized.
@@ -75,7 +76,7 @@ impl Attrs {
 	pub fn set(&mut self, key: &str, val: &str) {
 		match key {
 			"id" => (),
-			// TODO: If passed a "class", forward to class setting method
+			// TODO: Forward to class setting method
 			"class" => unimplemented!(),
 			_ => {
 				self.map.insert(
@@ -87,5 +88,31 @@ impl Attrs {
 				);
 			}
 		};
+	}
+
+	// Remove attribute from node
+	pub fn remove(&mut self, key: &str) {
+		self.map.remove(&tokenize(key));
+	}
+
+	// Clear all attributes
+	pub fn clear(&mut self) {
+		self.map.clear();
+	}
+
+	// Add class to Node class set
+	pub fn add_class(&mut self, class: &str) {
+		unimplemented!()
+	}
+
+	// Remove class from Node class set
+	pub fn remove_class(&mut self, class: &str) {
+		unimplemented!()
+	}
+}
+
+impl fmt::Write for Attrs {
+	fn write_str(&mut self, s: &str) -> fmt::Result {
+		unimplemented!()
 	}
 }
