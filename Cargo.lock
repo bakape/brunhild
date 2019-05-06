@@ -2,7 +2,7 @@
 # It is not intended for manual editing.
 [[package]]
 name = "brunhild"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "console_error_panic_hook 0.1.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "wasm-bindgen 0.2.43 (registry+https://github.com/rust-lang/crates.io-index)",
