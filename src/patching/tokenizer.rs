@@ -33,8 +33,8 @@ impl AsRef<str> for ArrayString {
 	}
 }
 
-// Type is convertible to and from string reference and can be used as a key in
-// a hash map
+// Type is convertible to string reference and can be used as a key in a hash
+// map
 trait Value: Eq + Hash + Clone + AsRef<str> {}
 
 impl Value for ArrayString {}
