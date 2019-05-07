@@ -81,9 +81,13 @@ impl Attrs {
 			_ => {
 				self.map.insert(
 					tokenize(key),
-					match TOKENIZABLE_VALUES.binary_search(&key) {
-						Ok(_) => Value::StringToken(tokenize(val)),
-						_ => Value::Untokenized(String::from(val)),
+					if val == "" {
+						Value::StringToken(0)
+					} else {
+						match TOKENIZABLE_VALUES.binary_search(&key) {
+							Ok(_) => Value::StringToken(tokenize(val)),
+							_ => Value::Untokenized(String::from(val)),
+						}
 					},
 				);
 			}
