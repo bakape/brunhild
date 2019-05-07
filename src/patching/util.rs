@@ -1,5 +1,7 @@
 use std::borrow::BorrowMut;
+use std::collections::HashMap;
 use std::fmt;
+use std::hash::Hash;
 
 // Efficient append-only string builder for reducing reallocations
 pub struct Appender {
@@ -49,4 +51,48 @@ where
 	F: FnOnce(&mut G) -> R,
 {
 	global.with(|r| func(r.borrow_mut().borrow_mut()))
+}
+
+// Value stored in TokenMap
+pub trait TokenValue: Eq + Hash + Clone {
+	// Write representation to w
+	fn write_to<W: fmt::Write>(&self, w: &mut W) -> fmt::Result;
+}
+
+// Bidirectional lookup map for <usize,T> with no key (or value) removal
+pub struct TokenMap<T: TokenValue> {
+	forward: HashMap<usize, T>,
+	inverted: HashMap<T, usize>,
+}
+
+impl<T: TokenValue> TokenMap<T> {
+	pub fn new() -> Self {
+		Self {
+			forward: HashMap::new(),
+			inverted: HashMap::new(),
+		}
+	}
+
+	// Get key token for a value, if it is in the map
+	pub fn get_token(&self, value: &T) -> Option<&usize> {
+		self.inverted.get(value)
+	}
+
+	// Insert new token and value into map
+	pub fn insert(&mut self, token: usize, value: T) {
+		self.forward.insert(token, value.clone());
+		self.inverted.insert(value, token);
+	}
+
+	// Lookup value by token and write to w
+	pub fn write_to<W: fmt::Write>(
+		&self,
+		token: usize,
+		w: &mut W,
+	) -> fmt::Result {
+		match self.forward.get(&token) {
+			Some(v) => v.write_to(w),
+			None => panic!("unset token lookup: {}", token),
+		}
+	}
 }

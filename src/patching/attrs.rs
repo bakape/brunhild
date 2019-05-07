@@ -48,16 +48,16 @@ static TOKENIZABLE_VALUES: [&'static str; 34] = [
 
 // Compressed attribute storage with manipulation functions
 pub struct Attrs {
-	map: BTreeMap<u64, Value>,
+	map: BTreeMap<usize, Value>,
 }
 
 // Contains a value stored in one of three storage methods for attribute values
 enum Value {
 	// Tokenized string value
-	StringToken(u64),
+	StringToken(usize),
 
 	// Tokenized set of classes
-	ClassSet(u64),
+	ClassSet(usize),
 
 	// Untokenized string. Used to store values too dynamic to benefit from
 	// tokenization in most use cases.

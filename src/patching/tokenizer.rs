@@ -27,103 +27,89 @@ impl ArrayString {
 	}
 }
 
-impl AsRef<str> for ArrayString {
-	fn as_ref(&self) -> &str {
-		std::str::from_utf8(&self.arr).unwrap()
+impl util::TokenValue for ArrayString {
+	fn write_to<W: fmt::Write>(&self, w: &mut W) -> fmt::Result {
+		w.write_str(std::str::from_utf8(&self.arr).unwrap())
 	}
 }
 
-// Type is convertible to string reference and can be used as a key in a hash
-// map
-trait Value: Eq + Hash + Clone + AsRef<str> {}
-
-impl Value for ArrayString {}
-impl Value for String {}
-
-// ID->string map with forward and inverted lookup
-struct ValueMap<V: Value> {
-	mask_high_bit: bool,
-	forward: HashMap<u64, V>,
-	inverted: HashMap<V, u64>,
-}
-
-impl<V: Value> ValueMap<V> {
-	fn new(mask_high_bit: bool) -> Self {
-		ValueMap {
-			mask_high_bit: mask_high_bit,
-			forward: HashMap::new(),
-			inverted: HashMap::new(),
-		}
-	}
-
-	// Get key token for a string, registering a new token, if not found.
-	fn tokenize(&mut self, v: V) -> u64 {
-		if let Some(id) = self.inverted.get(&v) {
-			return *id;
-		}
-
-		static mut ID_COUNTER: u64 = 0;
-		let mut k = unsafe {
-			ID_COUNTER += 1;
-			ID_COUNTER
-		};
-		if self.mask_high_bit {
-			k |= (1 << 63);
-		}
-		self.forward.insert(k, v.clone());
-		self.inverted.insert(v, k);
-		return k;
-	}
-
-	// Lookup string by token and write it to w
-	fn write_str<W: fmt::Write>(&self, k: u64, w: &mut W) -> fmt::Result {
-		w.write_str(self.forward.get(&k).unwrap().as_ref())
+impl util::TokenValue for String {
+	fn write_to<W: fmt::Write>(&self, w: &mut W) -> fmt::Result {
+		w.write_str(&self)
 	}
 }
 
 // Contains id->string and string->id mappings
 struct Registry {
-	small: ValueMap<ArrayString>,
-	large: ValueMap<String>,
+	id_counter: usize,
+	small: util::TokenMap<ArrayString>,
+	large: util::TokenMap<String>,
 }
 
 impl Registry {
 	fn new() -> Self {
 		Self {
-			small: ValueMap::new(false),
-			large: ValueMap::new(true),
+			id_counter: 0,
+			small: util::TokenMap::new(),
+			large: util::TokenMap::new(),
 		}
 	}
 
+	fn new_token(&mut self) -> usize {
+		self.id_counter += 1;
+		self.id_counter
+	}
+
 	// Convert string to token
-	fn tokenize(&mut self, s: &str) -> u64 {
+	fn tokenize(&mut self, s: &str) -> usize {
 		match s.len() {
 			0 => 0, // Don't store empty strings
-			1...15 => self.small.tokenize(ArrayString::new(s)),
-			_ => self.large.tokenize(String::from(s)),
+			1...15 => {
+				let v = ArrayString::new(s);
+				match self.small.get_token(&v) {
+					Some(t) => *t,
+					None => {
+						let t = self.new_token();
+						self.small.insert(t, v);
+						t
+					}
+				}
+			}
+			_ => {
+				let v = String::from(s);
+				match self.large.get_token(&v) {
+					Some(t) => *t,
+					None => {
+						let mut t = self.new_token();
+						t |= 1 << 63; // Mark highest bit
+						self.large.insert(t, v);
+						t
+					}
+				}
+			}
 		}
 	}
 
 	// Lookup string by token and write it to w
-	fn write_str<W: fmt::Write>(&self, k: u64, w: &mut W) -> fmt::Result {
+	fn write_str<W: fmt::Write>(&self, k: usize, w: &mut W) -> fmt::Result {
 		if k == 0 {
 			Ok(())
 		} else {
 			if k & (1 << 63) == 0 {
-				self.small.write_str(k, w)
+				self.small.write_to(k, w)
 			} else {
-				self.large.write_str(k, w)
+				self.large.write_to(k, w)
 			}
 		}
 	}
 }
 
 // Convert string to token
-pub fn tokenize(s: &str) -> u64 {
+pub fn tokenize(s: &str) -> usize {
 	util::with_global(&REGISTRY, |r| r.tokenize(s))
 }
 
-// Lookup string by token and write it to w
-pub fn write_str<W: fmt::Write>(k: u64, w: &mut W) -> fmt::Result {
+// Lookup token and write value to w
+pub fn write_to<W: fmt::Write>(k: usize, w: &mut W) -> fmt::Result {
 	util::with_global(&REGISTRY, |r| r.write_str(k, w))
 }
