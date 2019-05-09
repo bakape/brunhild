@@ -43,7 +43,7 @@ impl util::TokenValue for String {
 struct Registry {
 	id_counter: usize,
 	small: util::TokenMap<ArrayString>,
-	large: util::TokenMap<String>,
+	large: util::PointerTokenMap<String>,
 }
 
 impl Registry {
@@ -51,7 +51,7 @@ impl Registry {
 		Self {
 			id_counter: 0,
 			small: util::TokenMap::new(),
-			large: util::TokenMap::new(),
+			large: util::PointerTokenMap::new(),
 		}
 	}
 
