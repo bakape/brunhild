@@ -1,4 +1,4 @@
-use super::tokenizer::tokenize;
+use super::tokenizer;
 use super::util;
 use std::collections::HashMap;
 use std::fmt;
@@ -57,36 +57,41 @@ enum Value {
 	// Tokenized string value
 	StringToken(u16),
 
-	// Tokenized set of classes
-	ClassSet(u16),
-
 	// Untokenized string. Used to store values too dynamic to benefit from
 	// tokenization in most use cases.
 	Untokenized(String),
 }
 
 impl Attrs {
-	pub fn new() -> Self {
-		Self {
-			map: HashMap::new(),
+	// Create new attribute map from any key-value pair iterator-convertible
+	pub fn new<'a, T>(attrs: T) -> Self
+	where
+		T: IntoIterator<Item = (&'a str, &'a str)>,
+	{
+		let mut s = Self::default();
+		for (k, v) in attrs.into_iter() {
+			s.set(k, v);
 		}
+		return s;
 	}
 
 	// Sets an attribute value of a Node.
-	// Setting element id attributes is not supported and does nothing.
+	// Setting element "id" or "class" attributes is not supported here and does
+	// nothing.
 	pub fn set(&mut self, key: &str, val: &str) {
 		match key {
 			"id" => (),
-			// TODO: Forward to class setting method
-			"class" => unimplemented!(),
+			"class" => (),
 			_ => {
 				self.map.insert(
-					tokenize(key),
+					tokenizer::tokenize(key),
 					if val == "" {
 						Value::StringToken(0)
 					} else {
 						match TOKENIZABLE_VALUES.binary_search(&key) {
-							Ok(_) => Value::StringToken(tokenize(val)),
+							Ok(_) => {
+								Value::StringToken(tokenizer::tokenize(val))
+							}
 							_ => Value::Untokenized(String::from(val)),
 						}
 					},
@@ -97,22 +102,12 @@ impl Attrs {
 
 	// Remove attribute from node
 	pub fn remove(&mut self, key: &str) {
-		self.map.remove(&tokenize(key));
+		self.map.remove(&tokenizer::tokenize(key));
 	}
 
 	// Clear all attributes
 	pub fn clear(&mut self) {
 		self.map.clear();
-	}
-
-	// Add class to Node class set
-	pub fn add_class(&mut self, class: &str) {
-		unimplemented!()
-	}
-
-	// Remove class from Node class set
-	pub fn remove_class(&mut self, class: &str) {
-		unimplemented!()
 	}
 }
 
