@@ -18,7 +18,6 @@ pub struct Node {
 
 impl Node {
 	// Create new node with only the tag field set
-	#[inline]
 	fn new(tag: &str) -> Self {
 		Self {
 			tag: tokenizer::tokenize(tag),
@@ -27,30 +26,32 @@ impl Node {
 	}
 
 	// Create a node with predefined class list
-	#[inline]
 	fn with_classes<'a, C>(tag: &str, classes: C) -> Self
 	where
 		C: IntoIterator<Item = &'a str>,
 	{
-		let mut s = Self::new(tag);
-		s.class_set = super::classes::tokenize(classes);
-		s
+		Self {
+			tag: tokenizer::tokenize(tag),
+			class_set: super::classes::tokenize(classes),
+			..Default::default()
+		}
 	}
 
 	// Create a node with a predefined class list and attribute map
-	#[inline]
 	fn with_attrs<'a, 'b, C, A>(tag: &str, classes: C, attrs: A) -> Self
 	where
 		C: IntoIterator<Item = &'a str>,
 		A: IntoIterator<Item = (&'b str, &'b str)>,
 	{
-		let mut s = Self::with_classes(tag, classes);
-		s.attrs = Attrs::new(attrs);
-		s
+		Self {
+			tag: tokenizer::tokenize(tag),
+			class_set: super::classes::tokenize(classes),
+			attrs: Attrs::new(attrs),
+			..Default::default()
+		}
 	}
 
 	// Create a node with a predefined class list, attribute map and child list
-	#[inline]
 	fn with_children<'a, 'b, C, A>(
 		tag: &str,
 		classes: C,
@@ -61,9 +62,13 @@ impl Node {
 		C: IntoIterator<Item = &'a str>,
 		A: IntoIterator<Item = (&'b str, &'b str)>,
 	{
-		let mut s = Self::with_attrs(tag, classes, attrs);
-		s.children = children;
-		s
+		Self {
+			tag: tokenizer::tokenize(tag),
+			class_set: super::classes::tokenize(classes),
+			attrs: Attrs::new(attrs),
+			children: children,
+			..Default::default()
+		}
 	}
 
 	// Set HTML tag of node
