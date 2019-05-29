@@ -66,6 +66,11 @@ impl Node {
 		s
 	}
 
+	// Set HTML tag of node
+	pub fn set_tag(&mut self, tag: &str) {
+		self.tag = tokenizer::tokenize(tag);
+	}
+
 	// Add class to Node class set
 	pub fn add_class(&mut self, class: &str) {
 		unimplemented!()
