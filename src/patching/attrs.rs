@@ -1,6 +1,6 @@
 use super::tokenizer::tokenize;
 use super::util;
-use std::collections::BTreeMap;
+use std::collections::HashMap;
 use std::fmt;
 
 // Attribute keys that have limited set of values and thus can have their
@@ -47,17 +47,18 @@ static TOKENIZABLE_VALUES: [&'static str; 34] = [
 ];
 
 // Compressed attribute storage with manipulation functions
+#[derive(Default)]
 pub struct Attrs {
-	map: BTreeMap<usize, Value>,
+	map: HashMap<u16, Value>,
 }
 
 // Contains a value stored in one of three storage methods for attribute values
 enum Value {
 	// Tokenized string value
-	StringToken(usize),
+	StringToken(u16),
 
 	// Tokenized set of classes
-	ClassSet(usize),
+	ClassSet(u16),
 
 	// Untokenized string. Used to store values too dynamic to benefit from
 	// tokenization in most use cases.
@@ -67,7 +68,7 @@ enum Value {
 impl Attrs {
 	pub fn new() -> Self {
 		Self {
-			map: BTreeMap::new(),
+			map: HashMap::new(),
 		}
 	}
 

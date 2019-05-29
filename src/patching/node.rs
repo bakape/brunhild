@@ -7,6 +7,7 @@ use super::attrs::Attrs;
 	tree or in the pending patches tree. Such relation is determined during
 	diffing.
 */
+#[derive(Default)]
 pub struct Node {
 	tag: u64,
 	class_set_id: u64,

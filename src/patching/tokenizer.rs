@@ -6,11 +6,11 @@ use std::fmt;
 use std::hash::Hash;
 
 thread_local! {
-	static REGISTRY: RefCell<Registry> = RefCell::new(Registry::new());
+	static REGISTRY: RefCell<Registry> = Default::default();
 }
 
 // Storage for small (len <= 15) strings without allocating extra heap memory
-#[derive(PartialEq, Eq, Hash, Clone)]
+#[derive(Default, PartialEq, Eq, Hash, Clone)]
 struct ArrayString {
 	length: u8,
 	arr: [u8; 15],
@@ -40,28 +40,16 @@ impl util::TokenValue for String {
 }
 
 // Contains id->string and string->id mappings
+#[derive(Default)]
 struct Registry {
-	id_counter: usize,
+	id_gen: util::IDGenerator,
 	small: util::TokenMap<ArrayString>,
 	large: util::PointerTokenMap<String>,
 }
 
 impl Registry {
-	fn new() -> Self {
-		Self {
-			id_counter: 0,
-			small: util::TokenMap::new(),
-			large: util::PointerTokenMap::new(),
-		}
-	}
-
-	fn new_token(&mut self) -> usize {
-		self.id_counter += 1;
-		self.id_counter
-	}
-
 	// Convert string to token
-	fn tokenize(&mut self, s: &str) -> usize {
+	fn tokenize(&mut self, s: &str) -> u16 {
 		match s.len() {
 			0 => 0, // Don't store empty strings
 			1...15 => {
@@ -69,7 +57,7 @@ impl Registry {
 				match self.small.get_token(&v) {
 					Some(t) => *t,
 					None => {
-						let t = self.new_token();
+						let t = self.id_gen.new_id(false);
 						self.small.insert(t, v);
 						t
 					}
@@ -80,8 +68,7 @@ impl Registry {
 				match self.large.get_token(&v) {
 					Some(t) => *t,
 					None => {
-						let mut t = self.new_token();
-						t |= 1 << 63; // Mark highest bit
+						let t = self.id_gen.new_id(true);
 						self.large.insert(t, v);
 						t
 					}
@@ -91,25 +78,25 @@ impl Registry {
 	}
 
 	// Lookup string by token and write it to w
-	fn write_str<W: fmt::Write>(&self, k: usize, w: &mut W) -> fmt::Result {
+	fn write_to<W: fmt::Write>(&self, k: u16, w: &mut W) -> fmt::Result {
 		if k == 0 {
 			Ok(())
 		} else {
-			if k & (1 << 63) == 0 {
-				self.small.write_to(k, w)
-			} else {
+			if util::IDGenerator::is_flagged(k) {
 				self.large.write_to(k, w)
+			} else {
+				self.small.write_to(k, w)
 			}
 		}
 	}
 }
 
 // Convert string to token
-pub fn tokenize(s: &str) -> usize {
+pub fn tokenize(s: &str) -> u16 {
 	util::with_global(&REGISTRY, |r| r.tokenize(s))
 }
 
 // Lookup token and write value to w
-pub fn write_to<W: fmt::Write>(k: usize, w: &mut W) -> fmt::Result {
-	util::with_global(&REGISTRY, |r| r.write_str(k, w))
+pub fn write_to<W: fmt::Write>(k: u16, w: &mut W) -> fmt::Result {
+	util::with_global(&REGISTRY, |r| r.write_to(k, w))
 }
