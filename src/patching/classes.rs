@@ -2,7 +2,7 @@ use super::tokenizer;
 use super::util;
 use std::cell::RefCell;
 use std::cmp::{Ord, Ordering, PartialOrd};
-use std::collections::BTreeSet;
+use std::collections::HashSet;
 use std::fmt;
 use std::iter::Iterator;
 
@@ -25,16 +25,16 @@ impl From<&Vec<u16>> for ArrayClassSet {
 	}
 }
 
-impl Into<Vec<u16>> for ArrayClassSet {
-	fn into(self) -> Vec<u16> {
-		let mut vec = Vec::with_capacity(4);
+impl Into<HashSet<u16>> for ArrayClassSet {
+	fn into(self) -> HashSet<u16> {
+		let mut set = HashSet::with_capacity(4);
 		for id in self.0.iter() {
 			if *id == 0 {
 				break;
 			}
-			vec.push(*id);
+			set.insert(*id);
 		}
-		return vec;
+		return set;
 	}
 }
 
@@ -60,6 +60,12 @@ struct VectorClassSet(Vec<u16>);
 impl VectorClassSet {
 	fn new(vec: Vec<u16>) -> Self {
 		Self(vec)
+	}
+}
+
+impl Into<HashSet<u16>> for VectorClassSet {
+	fn into(self) -> HashSet<u16> {
+		self.0.into_iter().collect()
 	}
 }
 
@@ -122,7 +128,7 @@ impl Registry {
 	}
 
 	// // Lookup class set by token and write it to w
-	fn write_class_set<W: fmt::Write>(&self, k: u16, w: &mut W) -> fmt::Result {
+	fn write_to<W: fmt::Write>(&self, k: u16, w: &mut W) -> fmt::Result {
 		w.write_str("class=\"")?;
 		if k != 0 {
 			if util::IDGenerator::is_flagged(k) {
@@ -134,15 +140,65 @@ impl Registry {
 		w.write_char('"')
 	}
 
+	// Augment existing class set and return new class set ID
+	fn augment_class_set<F>(&mut self, token: u16, func: F) -> u16
+	where
+		F: FnOnce(&mut HashSet<u16>),
+	{
+		macro_rules! get {
+			($x:ident) => {
+				match self.$x.get_value(token) {
+					Some(v) => Some(v.into()),
+					None => None,
+					}
+			};
+		}
+
+		let mut old = match {
+			if util::IDGenerator::is_flagged(token) {
+				get!(large)
+			} else {
+				get!(small)
+			}
+		} {
+			Some(v) => v,
+			None => panic!("unregistered class token lookup: {}", token),
+		};
+		func(&mut old);
+		self.tokenize_set(old.into_iter().collect())
+	}
+
 	// Add class to given tokenized set and return new set ID
-	fn add_class(src: u16) -> u16 {
-		unimplemented!()
+	fn add_class(&mut self, src: u16, class: &str) -> u16 {
+		self.augment_class_set(src, |old| {
+			old.insert(tokenizer::tokenize(class));
+		})
 	}
 
 	// Remove class from given tokenized set and return new set ID
-	fn remove_class(src: u16) -> u16 {
-		unimplemented!()
+	fn remove_class(&mut self, src: u16, class: &str) -> u16 {
+		self.augment_class_set(src, |old| {
+			old.remove(&tokenizer::tokenize(class));
+		})
 	}
 }
 
-// TODO: Macro to generate public functions. Also reuse it in tokenizer.rs.
+// Convert class set of strings to token
+pub fn tokenize<'a, I: Iterator<Item = &'a str>>(set: I) -> u16 {
+	util::with_global(&REGISTRY, |r| r.tokenize(set))
+}
+
+// // Lookup class set by token and write it to w
+pub fn write_to<W: fmt::Write>(k: u16, w: &mut W) -> fmt::Result {
+	util::with_global(&REGISTRY, |r| r.write_to(k, w))
+}
+
+// Add class to given tokenized set and return new set ID
+pub fn add_class(src: u16, class: &str) -> u16 {
+	util::with_global(&REGISTRY, |r| r.add_class(src, class))
+}
+
+// Remove class from given tokenized set and return new set ID
+pub fn remove_class(src: u16, class: &str) -> u16 {
+	util::with_global(&REGISTRY, |r| r.remove_class(src, class))
+}

@@ -72,6 +72,14 @@ impl<T: TokenValue> TokenMap<T> {
 		self.inverted.get(value)
 	}
 
+	// Get a copy of value from token, if it is in the map
+	pub fn get_value(&self, token: u16) -> Option<T> {
+		match self.forward.get(&token) {
+			Some(v) => Some(v.clone()),
+			None => None,
+		}
+	}
+
 	// Insert new token and value into map
 	pub fn insert(&mut self, token: u16, value: T) {
 		self.forward.insert(token, value.clone());
@@ -114,6 +122,14 @@ impl<T: TokenValue> PointerTokenMap<T> {
 	// Get key token for a value, if it is in the map
 	pub fn get_token(&self, value: &T) -> Option<&u16> {
 		self.inverted.get(unsafe { std::mem::transmute(value) })
+	}
+
+	// Get a copy of value from token, if it is in the map
+	pub fn get_value(&self, token: u16) -> Option<T> {
+		match self.forward.get(&token) {
+			Some(v) => Some(unsafe { (*v.0).clone() }),
+			None => None,
+		}
 	}
 
 	// Insert new token and value into map
