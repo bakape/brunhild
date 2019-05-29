@@ -67,13 +67,6 @@ pub struct TokenMap<T: TokenValue> {
 }
 
 impl<T: TokenValue> TokenMap<T> {
-	pub fn new() -> Self {
-		Self {
-			forward: HashMap::new(),
-			inverted: HashMap::new(),
-		}
-	}
-
 	// Get key token for a value, if it is in the map
 	pub fn get_token(&self, value: &T) -> Option<&u16> {
 		self.inverted.get(value)
@@ -118,13 +111,6 @@ pub struct PointerTokenMap<T: TokenValue> {
 }
 
 impl<T: TokenValue> PointerTokenMap<T> {
-	pub fn new() -> Self {
-		Self {
-			forward: HashMap::new(),
-			inverted: HashMap::new(),
-		}
-	}
-
 	// Get key token for a value, if it is in the map
 	pub fn get_token(&self, value: &T) -> Option<&u16> {
 		self.inverted.get(unsafe { std::mem::transmute(value) })
