@@ -5,6 +5,9 @@ use super::util;
 use std::fmt;
 use std::iter::FromIterator;
 
+const IS_TEXT: u8 = 1; // Text Node
+const IMMUTABLE: u8 = 1 << 1; // Node contents never change
+
 /*
 Node used for constructing DOM trees for applying patches.
 
@@ -12,6 +15,8 @@ This node type does not contain any binding to existing nodes in the DOM tree
 or in the pending patches tree. Such relation is determined during diffing.
 */
 pub struct Node {
+	flags: u8,
+
 	// ID of element the node is representing. This is always zero in
 	// user-created nodes and is only set, when a node has been diffed and
 	// patched into the DOM representation tree.
@@ -19,6 +24,10 @@ pub struct Node {
 
 	tag: u16,
 	class_set: u16,
+
+	// Inner text content for text nodes
+	inner_text: String,
+
 	pub attrs: Attrs,
 	pub children: Vec<Node>,
 }
@@ -48,7 +57,7 @@ impl Node {
 	fn with_attrs<'a, 'b, C, A>(tag: &str, classes: C, attrs: A) -> Self
 	where
 		C: IntoIterator<Item = &'a str>,
-		A: IntoIterator<Item = (&'b str, &'b str)>,
+		A: IntoIterator<Item = &'b (&'b str, &'b str)>,
 	{
 		Self {
 			tag: tokenizer::tokenize(tag),
@@ -67,13 +76,37 @@ impl Node {
 	) -> Self
 	where
 		C: IntoIterator<Item = &'a str>,
-		A: IntoIterator<Item = (&'b str, &'b str)>,
+		A: IntoIterator<Item = &'b (&'b str, &'b str)>,
 	{
 		Self {
 			tag: tokenizer::tokenize(tag),
 			class_set: super::classes::tokenize(classes),
 			attrs: Attrs::from_iter(attrs),
 			children: children,
+			..Default::default()
+		}
+	}
+
+	// Create a text node with set inner content.
+	// The inner text is HTML-escaped on creation.
+	fn text(text: &str) -> Self {
+		Self {
+			flags: IS_TEXT,
+			tag: 0,
+			attrs: Attrs::from_iter(
+				[("_text", util::html_escape(text).as_str())].iter(),
+			),
+			..Default::default()
+		}
+	}
+
+	// Create a text node with set inner content.
+	// The inner text is not HTML-escaped on creation.
+	fn text_unescaped(text: &str) -> Self {
+		Self {
+			flags: IS_TEXT,
+			tag: 0,
+			attrs: Attrs::from_iter([("_text", text)].iter()),
 			..Default::default()
 		}
 	}
@@ -97,30 +130,63 @@ impl Node {
 impl Default for Node {
 	fn default() -> Self {
 		Self {
+			flags: 0,
 			id: 0,
 			tag: tokenizer::tokenize("div"),
 			class_set: 0,
 			attrs: Default::default(),
 			children: Default::default(),
+			inner_text: Default::default(),
 		}
 	}
 }
 
-impl util::WriteHTMLTo for Node {
+impl super::WriteHTMLTo for Node {
 	fn write_html_to<W: fmt::Write>(&self, w: &mut W) -> fmt::Result {
-		w.write_char('<')?;
-		tokenizer::write_html_to(self.tag, w)?;
+		let is_text = self.flags & IS_TEXT != 0;
 
-		write!(w, " id=\"bh-{}\"", self.id)?;
-
-		if self.class_set != 0 {
-			w.write_str(" class=")?;
-			classes::write_html_to(self.class_set, w)?;
-			w.write_char('"')?;
+		macro_rules! write_tag {
+			() => {
+				if is_text {
+					w.write_str("span")?;
+				} else {
+					tokenizer::write_html_to(self.tag, w)?;
+					}
+			};
 		}
 
-		self.attrs.write_html_to(w)?;
+		w.write_char('<')?;
+		write_tag!();
+		write!(w, " id=\"bh-{}\"", self.id)?;
+		if !is_text {
+			if self.class_set != 0 {
+				w.write_str(" class=")?;
+				classes::write_html_to(self.class_set, w)?;
+				w.write_char('"')?;
+			}
+			self.attrs.write_html_to(w)?;
+		}
+		w.write_char('>')?;
 
+		if is_text {
+			w.write_str(&self.inner_text)?;
+		} else {
+			match self.tag {
+				// <br>, <hr> and <wbr> must not be closed.
+				// Some browsers will interpret that as 2 tags.
+				36 | 124 | 282 => {
+					return Ok(());
+				}
+				_ => {
+					for ch in self.children.iter() {
+						ch.write_html_to(w)?;
+					}
+				}
+			};
+		}
+
+		w.write_str("</")?;
+		write_tag!();
 		w.write_char('>')
 	}
 }

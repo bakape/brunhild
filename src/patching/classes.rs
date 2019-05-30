@@ -38,7 +38,7 @@ impl Into<HashSet<u16>> for ArrayClassSet {
 	}
 }
 
-impl util::WriteHTMLTo for ArrayClassSet {
+impl super::WriteHTMLTo for ArrayClassSet {
 	fn write_html_to<W: fmt::Write>(&self, w: &mut W) -> fmt::Result {
 		for (i, id) in self.0.iter().enumerate() {
 			if *id == 0 {
@@ -69,7 +69,7 @@ impl Into<HashSet<u16>> for VectorClassSet {
 	}
 }
 
-impl util::WriteHTMLTo for VectorClassSet {
+impl super::WriteHTMLTo for VectorClassSet {
 	fn write_html_to<W: fmt::Write>(&self, w: &mut W) -> fmt::Result {
 		for (i, id) in self.0.iter().enumerate() {
 			if i != 0 {

@@ -57,19 +57,14 @@ where
 	global.with(|r| func(r.borrow_mut().borrow_mut()))
 }
 
-// Able to write itself as HTML to w
-pub trait WriteHTMLTo {
-	fn write_html_to<W: fmt::Write>(&self, w: &mut W) -> fmt::Result;
-}
-
 // Bidirectional lookup map for <usize,T> with no key (or value) removal
 #[derive(Default)]
-pub struct TokenMap<T: Eq + Hash + Clone + WriteHTMLTo> {
+pub struct TokenMap<T: Eq + Hash + Clone + super::WriteHTMLTo> {
 	forward: HashMap<u16, T>,
 	inverted: HashMap<T, u16>,
 }
 
-impl<T: Eq + Hash + Clone + WriteHTMLTo> TokenMap<T> {
+impl<T: Eq + Hash + Clone + super::WriteHTMLTo> TokenMap<T> {
 	// Get key token for a value, if it is in the map
 	pub fn get_token(&self, value: &T) -> Option<&u16> {
 		self.inverted.get(value)
@@ -105,9 +100,9 @@ impl<T: Eq + Hash + Clone + WriteHTMLTo> TokenMap<T> {
 // Overrides hashing method.
 // The default hashing method for *const is conversion to usize.
 #[derive(PartialEq, Eq)]
-struct ValuePointer<T: Eq + Hash + Clone + WriteHTMLTo>(*const T);
+struct ValuePointer<T: Eq + Hash + Clone + super::WriteHTMLTo>(*const T);
 
-impl<T: Eq + Hash + Clone + WriteHTMLTo> Hash for ValuePointer<T> {
+impl<T: Eq + Hash + Clone + super::WriteHTMLTo> Hash for ValuePointer<T> {
 	fn hash<H: Hasher>(&self, state: &mut H) {
 		unsafe { (*self.0).hash(state) };
 	}
@@ -116,12 +111,12 @@ impl<T: Eq + Hash + Clone + WriteHTMLTo> Hash for ValuePointer<T> {
 // Bidirectional lookup map for <usize,T> with no key (or value) removal.
 // Stores values as pointers to avoid copies.
 #[derive(Default)]
-pub struct PointerTokenMap<T: Eq + Hash + Clone + WriteHTMLTo> {
+pub struct PointerTokenMap<T: Eq + Hash + Clone + super::WriteHTMLTo> {
 	forward: HashMap<u16, ValuePointer<T>>,
 	inverted: HashMap<ValuePointer<T>, u16>,
 }
 
-impl<T: Eq + Hash + Clone + WriteHTMLTo> PointerTokenMap<T> {
+impl<T: Eq + Hash + Clone + super::WriteHTMLTo> PointerTokenMap<T> {
 	// Get key token for a value, if it is in the map
 	pub fn get_token(&self, value: &T) -> Option<&u16> {
 		self.inverted.get(unsafe { std::mem::transmute(value) })
@@ -162,6 +157,12 @@ pub struct IDGenerator {
 }
 
 impl IDGenerator {
+	pub fn new(start_from: u16) -> Self {
+		Self {
+			counter: start_from,
+		}
+	}
+
 	// Create new ID  with optional highest bit flagging
 	pub fn new_id(&mut self, flag_highest: bool) -> u16 {
 		self.counter += 1;
@@ -177,4 +178,30 @@ impl IDGenerator {
 	pub fn is_flagged(id: u16) -> bool {
 		return id & (1 << 15) != 0;
 	}
+}
+
+// HTML-Escape a string
+pub fn html_escape(s: &str) -> String {
+	let mut escaped = String::with_capacity(s.len());
+	for ch in s.chars() {
+		match ch {
+			'&' => escaped += "&amp;",
+			'\'' => {
+				escaped += "&#39;"; // "&#39;" is shorter than "&apos;"
+			}
+			'<' => {
+				escaped += "&lt;";
+			}
+			'>' => {
+				escaped += "&gt;";
+			}
+			'"' => {
+				escaped += "&#34;"; // "&#34;" is shorter than "&quot;"
+			}
+			_ => {
+				escaped.push(ch);
+			}
+		};
+	}
+	escaped
 }

@@ -1,5 +1,4 @@
 use super::tokenizer;
-use super::util;
 use std::collections::HashMap;
 use std::fmt;
 use std::iter::FromIterator;
@@ -62,6 +61,16 @@ enum Value {
 }
 
 impl Attrs {
+	// Create empty attribute map
+	pub fn new() -> Self {
+		Default::default()
+	}
+
+	// Create empty attribute map with set capacity
+	pub fn with_capacity(capacity: usize) -> Self {
+		Self(HashMap::with_capacity(capacity))
+	}
+
 	// Sets an attribute value of a Node.
 	// Setting element "id" or "class" attributes is not supported here.
 	pub fn set(&mut self, key: &str, val: &str) {
@@ -89,13 +98,14 @@ impl Attrs {
 	}
 }
 
-impl<'a> FromIterator<(&'a str, &'a str)> for Attrs {
+impl<'a> FromIterator<&'a (&'a str, &'a str)> for Attrs {
 	// Create new attribute map from any key-value pair iterator
 	fn from_iter<T>(iter: T) -> Self
 	where
-		T: IntoIterator<Item = (&'a str, &'a str)>,
+		T: IntoIterator<Item = &'a (&'a str, &'a str)>,
 	{
-		let mut s = Self::default();
+		let iter = iter.into_iter();
+		let mut s = Self::with_capacity(iter.size_hint().0);
 		for (k, v) in iter {
 			s.set(k, v);
 		}
@@ -103,7 +113,7 @@ impl<'a> FromIterator<(&'a str, &'a str)> for Attrs {
 	}
 }
 
-impl util::WriteHTMLTo for Attrs {
+impl super::WriteHTMLTo for Attrs {
 	fn write_html_to<W: fmt::Write>(&self, w: &mut W) -> fmt::Result {
 		for (k, v) in self.0.iter() {
 			w.write_char(' ')?;

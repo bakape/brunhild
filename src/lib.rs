@@ -3,6 +3,7 @@ mod utils;
 
 pub use patching::attrs::Attrs;
 pub use patching::node::Node;
+pub use patching::html_escape;
 
 // When the `wee_alloc` feature is enabled, use `wee_alloc` as the global
 // allocator.
