@@ -3,6 +3,9 @@ name = "brunhild"
 version = "0.2.0"
 authors = ["bakape <bakape@gmail.com>"]
 edition = "2018"
+description  = "experimental compressive Rust virtual DOM library"
+repository = "https://github.com/bakape/brunhild.git"
+license = "MIT"
 
 [lib]
 crate-type = ["cdylib", "rlib"]
