@@ -28,17 +28,21 @@ impl Appender {
 	pub fn dump(&mut self) -> String {
 		self.buffers.concat()
 	}
+
+	fn last_mut(&mut self) -> &mut String {
+		self.buffers.last_mut().unwrap()
+	}
 }
 
 impl fmt::Write for Appender {
 	fn write_str(&mut self, s: &str) -> fmt::Result {
 		self.assert_cap(s.len());
-		self.buffers.last_mut().unwrap().write_str(s)
+		self.last_mut().write_str(s)
 	}
 
 	fn write_char(&mut self, c: char) -> fmt::Result {
 		self.assert_cap(1);
-		self.buffers.last_mut().unwrap().write_char(c)
+		self.last_mut().write_char(c)
 	}
 }
 
@@ -53,20 +57,19 @@ where
 	global.with(|r| func(r.borrow_mut().borrow_mut()))
 }
 
-// Value stored in TokenMap
-pub trait TokenValue: Eq + Hash + Clone {
-	// Write representation to w
-	fn write_to<W: fmt::Write>(&self, w: &mut W) -> fmt::Result;
+// Able to write itself as HTML to w
+pub trait WriteHTMLTo {
+	fn write_html_to<W: fmt::Write>(&self, w: &mut W) -> fmt::Result;
 }
 
 // Bidirectional lookup map for <usize,T> with no key (or value) removal
 #[derive(Default)]
-pub struct TokenMap<T: TokenValue> {
+pub struct TokenMap<T: Eq + Hash + Clone + WriteHTMLTo> {
 	forward: HashMap<u16, T>,
 	inverted: HashMap<T, u16>,
 }
 
-impl<T: TokenValue> TokenMap<T> {
+impl<T: Eq + Hash + Clone + WriteHTMLTo> TokenMap<T> {
 	// Get key token for a value, if it is in the map
 	pub fn get_token(&self, value: &T) -> Option<&u16> {
 		self.inverted.get(value)
@@ -87,13 +90,13 @@ impl<T: TokenValue> TokenMap<T> {
 	}
 
 	// Lookup value by token and write to w
-	pub fn write_to<W: fmt::Write>(
+	pub fn write_html_to<W: fmt::Write>(
 		&self,
 		token: u16,
 		w: &mut W,
 	) -> fmt::Result {
 		match self.forward.get(&token) {
-			Some(v) => v.write_to(w),
+			Some(v) => v.write_html_to(w),
 			None => panic!("unset token lookup: {}", token),
 		}
 	}
@@ -102,9 +105,9 @@ impl<T: TokenValue> TokenMap<T> {
 // Overrides hashing method.
 // The default hashing method for *const is conversion to usize.
 #[derive(PartialEq, Eq)]
-struct ValuePointer<T: TokenValue>(*const T);
+struct ValuePointer<T: Eq + Hash + Clone + WriteHTMLTo>(*const T);
 
-impl<T: TokenValue> Hash for ValuePointer<T> {
+impl<T: Eq + Hash + Clone + WriteHTMLTo> Hash for ValuePointer<T> {
 	fn hash<H: Hasher>(&self, state: &mut H) {
 		unsafe { (*self.0).hash(state) };
 	}
@@ -113,12 +116,12 @@ impl<T: TokenValue> Hash for ValuePointer<T> {
 // Bidirectional lookup map for <usize,T> with no key (or value) removal.
 // Stores values as pointers to avoid copies.
 #[derive(Default)]
-pub struct PointerTokenMap<T: TokenValue> {
+pub struct PointerTokenMap<T: Eq + Hash + Clone + WriteHTMLTo> {
 	forward: HashMap<u16, ValuePointer<T>>,
 	inverted: HashMap<ValuePointer<T>, u16>,
 }
 
-impl<T: TokenValue> PointerTokenMap<T> {
+impl<T: Eq + Hash + Clone + WriteHTMLTo> PointerTokenMap<T> {
 	// Get key token for a value, if it is in the map
 	pub fn get_token(&self, value: &T) -> Option<&u16> {
 		self.inverted.get(unsafe { std::mem::transmute(value) })
@@ -140,13 +143,13 @@ impl<T: TokenValue> PointerTokenMap<T> {
 	}
 
 	// Lookup value by token and write to w
-	pub fn write_to<W: fmt::Write>(
+	pub fn write_html_to<W: fmt::Write>(
 		&self,
 		token: u16,
 		w: &mut W,
 	) -> fmt::Result {
 		match self.forward.get(&token) {
-			Some(v) => unsafe { (*v.0).write_to(w) },
+			Some(v) => unsafe { (*v.0).write_html_to(w) },
 			None => panic!("unset token lookup: {}", token),
 		}
 	}

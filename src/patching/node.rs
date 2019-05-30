@@ -1,15 +1,22 @@
 use super::attrs::Attrs;
 use super::classes;
 use super::tokenizer;
+use super::util;
+use std::fmt;
+use std::iter::FromIterator;
 
 /*
-	Node used for constructing DOM trees for applying patches.
+Node used for constructing DOM trees for applying patches.
 
-	This node type does not contain any binding to existing nodes in the DOM
-	tree or in the pending patches tree. Such relation is determined during
-	diffing.
+This node type does not contain any binding to existing nodes in the DOM tree
+or in the pending patches tree. Such relation is determined during diffing.
 */
 pub struct Node {
+	// ID of element the node is representing. This is always zero in
+	// user-created nodes and is only set, when a node has been diffed and
+	// patched into the DOM representation tree.
+	id: u16,
+
 	tag: u16,
 	class_set: u16,
 	pub attrs: Attrs,
@@ -46,7 +53,7 @@ impl Node {
 		Self {
 			tag: tokenizer::tokenize(tag),
 			class_set: super::classes::tokenize(classes),
-			attrs: Attrs::new(attrs),
+			attrs: Attrs::from_iter(attrs),
 			..Default::default()
 		}
 	}
@@ -65,7 +72,7 @@ impl Node {
 		Self {
 			tag: tokenizer::tokenize(tag),
 			class_set: super::classes::tokenize(classes),
-			attrs: Attrs::new(attrs),
+			attrs: Attrs::from_iter(attrs),
 			children: children,
 			..Default::default()
 		}
@@ -90,10 +97,30 @@ impl Node {
 impl Default for Node {
 	fn default() -> Self {
 		Self {
+			id: 0,
 			tag: tokenizer::tokenize("div"),
 			class_set: 0,
 			attrs: Default::default(),
 			children: Default::default(),
 		}
+	}
+}
+
+impl util::WriteHTMLTo for Node {
+	fn write_html_to<W: fmt::Write>(&self, w: &mut W) -> fmt::Result {
+		w.write_char('<')?;
+		tokenizer::write_html_to(self.tag, w)?;
+
+		write!(w, " id=\"bh-{}\"", self.id)?;
+
+		if self.class_set != 0 {
+			w.write_str(" class=")?;
+			classes::write_html_to(self.class_set, w)?;
+			w.write_char('"')?;
+		}
+
+		self.attrs.write_html_to(w)?;
+
+		w.write_char('>')
 	}
 }

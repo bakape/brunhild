@@ -38,8 +38,8 @@ impl Into<HashSet<u16>> for ArrayClassSet {
 	}
 }
 
-impl util::TokenValue for ArrayClassSet {
-	fn write_to<W: fmt::Write>(&self, w: &mut W) -> fmt::Result {
+impl util::WriteHTMLTo for ArrayClassSet {
+	fn write_html_to<W: fmt::Write>(&self, w: &mut W) -> fmt::Result {
 		for (i, id) in self.0.iter().enumerate() {
 			if *id == 0 {
 				break;
@@ -47,7 +47,7 @@ impl util::TokenValue for ArrayClassSet {
 			if i != 0 {
 				w.write_char(' ')?;
 			}
-			tokenizer::write_to(*id, w)?;
+			tokenizer::write_html_to(*id, w)?;
 		}
 		Ok(())
 	}
@@ -69,13 +69,13 @@ impl Into<HashSet<u16>> for VectorClassSet {
 	}
 }
 
-impl util::TokenValue for VectorClassSet {
-	fn write_to<W: fmt::Write>(&self, w: &mut W) -> fmt::Result {
+impl util::WriteHTMLTo for VectorClassSet {
+	fn write_html_to<W: fmt::Write>(&self, w: &mut W) -> fmt::Result {
 		for (i, id) in self.0.iter().enumerate() {
 			if i != 0 {
 				w.write_char(' ')?;
 			}
-			tokenizer::write_to(*id, w)?;
+			tokenizer::write_html_to(*id, w)?;
 		}
 		Ok(())
 	}
@@ -130,16 +130,12 @@ impl Registry {
 	}
 
 	// // Lookup class set by token and write it to w
-	fn write_to<W: fmt::Write>(&self, k: u16, w: &mut W) -> fmt::Result {
-		w.write_str("class=\"")?;
-		if k != 0 {
-			if util::IDGenerator::is_flagged(k) {
-				self.large.write_to(k, w)?;
-			} else {
-				self.small.write_to(k, w)?;
-			}
+	fn write_html_to<W: fmt::Write>(&self, k: u16, w: &mut W) -> fmt::Result {
+		if util::IDGenerator::is_flagged(k) {
+			self.large.write_html_to(k, w)
+		} else {
+			self.small.write_html_to(k, w)
 		}
-		w.write_char('"')
 	}
 
 	// Augment existing class set and return new class set ID
@@ -191,8 +187,8 @@ pub fn tokenize<'a, I: IntoIterator<Item = &'a str>>(set: I) -> u16 {
 }
 
 // // Lookup class set by token and write it to w
-pub fn write_to<W: fmt::Write>(k: u16, w: &mut W) -> fmt::Result {
-	util::with_global(&REGISTRY, |r| r.write_to(k, w))
+pub fn write_html_to<W: fmt::Write>(k: u16, w: &mut W) -> fmt::Result {
+	util::with_global(&REGISTRY, |r| r.write_html_to(k, w))
 }
 
 // Add class to given tokenized set and write new set ID to reference
