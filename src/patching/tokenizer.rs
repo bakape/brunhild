@@ -389,7 +389,7 @@ impl Registry {
 	fn write_html_to<W: fmt::Write>(&self, k: u16, w: &mut W) -> fmt::Result {
 		if k == 0 {
 			Ok(())
-		} else if k < PREDEFINED.len() as u16 {
+		} else if k <= PREDEFINED.len() as u16 {
 			w.write_str(PREDEFINED[k as usize - 1])
 		} else {
 			if util::IDGenerator::is_flagged(k) {
