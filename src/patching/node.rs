@@ -78,12 +78,12 @@ impl Node {
 
 	// Add class to Node class set
 	pub fn add_class(&mut self, class: &str) {
-		unimplemented!()
+		classes::add_class(&mut self.class_set, class);
 	}
 
 	// Remove class from Node class set
 	pub fn remove_class(&mut self, class: &str) {
-		unimplemented!()
+		classes::remove_class(&mut self.class_set, class);
 	}
 }
 

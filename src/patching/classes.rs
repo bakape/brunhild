@@ -143,13 +143,13 @@ impl Registry {
 	}
 
 	// Augment existing class set and return new class set ID
-	fn augment_class_set<F>(&mut self, token: u16, func: F) -> u16
+	fn augment_class_set<F>(&mut self, token: &mut u16, func: F)
 	where
 		F: FnOnce(&mut HashSet<u16>),
 	{
 		macro_rules! get {
 			($x:ident) => {
-				match self.$x.get_value(token) {
+				match self.$x.get_value(*token) {
 					Some(v) => Some(v.into()),
 					None => None,
 					}
@@ -157,7 +157,7 @@ impl Registry {
 		}
 
 		let mut old = match {
-			if util::IDGenerator::is_flagged(token) {
+			if util::IDGenerator::is_flagged(*token) {
 				get!(large)
 			} else {
 				get!(small)
@@ -167,21 +167,21 @@ impl Registry {
 			None => panic!("unregistered class token lookup: {}", token),
 		};
 		func(&mut old);
-		self.tokenize_set(old.into_iter().collect())
+		*token = self.tokenize_set(old.into_iter().collect());
 	}
 
-	// Add class to given tokenized set and return new set ID
-	fn add_class(&mut self, src: u16, class: &str) -> u16 {
-		self.augment_class_set(src, |old| {
+	// Add class to given tokenized set and write new set ID to reference
+	fn add_class(&mut self, token: &mut u16, class: &str) {
+		self.augment_class_set(token, |old| {
 			old.insert(tokenizer::tokenize(class));
-		})
+		});
 	}
 
-	// Remove class from given tokenized set and return new set ID
-	fn remove_class(&mut self, src: u16, class: &str) -> u16 {
-		self.augment_class_set(src, |old| {
+	// Remove class from given tokenized set and write new set ID to reference
+	fn remove_class(&mut self, token: &mut u16, class: &str) {
+		self.augment_class_set(token, |old| {
 			old.remove(&tokenizer::tokenize(class));
-		})
+		});
 	}
 }
 
@@ -195,12 +195,12 @@ pub fn write_to<W: fmt::Write>(k: u16, w: &mut W) -> fmt::Result {
 	util::with_global(&REGISTRY, |r| r.write_to(k, w))
 }
 
-// Add class to given tokenized set and return new set ID
-pub fn add_class(src: u16, class: &str) -> u16 {
-	util::with_global(&REGISTRY, |r| r.add_class(src, class))
+// Add class to given tokenized set and write new set ID to reference
+pub fn add_class(token: &mut u16, class: &str) {
+	util::with_global(&REGISTRY, |r| r.add_class(token, class));
 }
 
-// Remove class from given tokenized set and return new set ID
-pub fn remove_class(src: u16, class: &str) -> u16 {
-	util::with_global(&REGISTRY, |r| r.remove_class(src, class))
+// Remove class from given tokenized set and write new set ID to reference
+pub fn remove_class(token: &mut u16, class: &str) {
+	util::with_global(&REGISTRY, |r| r.remove_class(token, class));
 }
