@@ -2,9 +2,8 @@ use super::attrs::Attrs;
 use super::classes;
 use super::tokenizer;
 use super::util;
-use std::collections::HashMap;
 use std::fmt;
-use wasm_bindgen::prelude::{wasm_bindgen, JsValue};
+use wasm_bindgen::prelude::wasm_bindgen;
 
 const IMMUTABLE: u8 = 1; // Node contents never change
 const DIRTY: u8 = 1 << 1; // Node contents not synced to DOM yet
@@ -142,7 +141,7 @@ impl<'a> Default for TextOptions<'a> {
 impl Node {
 	// Create an Element Node
 	pub fn element(opts: &ElementOptions) -> Self {
-		Self {
+		let mut s = Self {
 			contents: NodeContents::Element(ElementContents {
 				common: ElementContentsCommon {
 					tag: tokenizer::tokenize(opts.tag),
@@ -152,12 +151,16 @@ impl Node {
 				..Default::default()
 			}),
 			..Default::default()
+		};
+		if opts.immutable {
+			s.flags |= IMMUTABLE;
 		}
+		s
 	}
 
 	// Create an Element Node with children
 	pub fn with_children(opts: &ElementOptions, children: Vec<Node>) -> Self {
-		Self {
+		let mut s = Self {
 			contents: NodeContents::Element(ElementContents {
 				common: ElementContentsCommon {
 					tag: tokenizer::tokenize(opts.tag),
@@ -167,21 +170,29 @@ impl Node {
 				children: children,
 			}),
 			..Default::default()
+		};
+		if opts.immutable {
+			s.flags |= IMMUTABLE;
 		}
+		s
 	}
 
 	// Create a text node with set inner content
 	//
 	// escape: optional HTML escaping
 	pub fn text(opts: &TextOptions) -> Self {
-		Self {
+		let mut s = Self {
 			contents: NodeContents::Text(if opts.escape {
 				util::html_escape(opts.text.into())
 			} else {
 				opts.text.into()
 			}),
 			..Default::default()
+		};
+		if opts.immutable {
+			s.flags |= IMMUTABLE;
 		}
+		s
 	}
 
 	// Return, if node is marked immutable
