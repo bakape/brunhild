@@ -1,9 +1,6 @@
 use super::util;
 use std::cell::RefCell;
-use std::collections::HashMap;
-use std::convert::AsRef;
 use std::fmt;
-use std::hash::Hash;
 
 /*
 Sorted list of predefined HTML tags and attributes to reduce allocations and

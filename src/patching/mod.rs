@@ -1,14 +1,12 @@
-// TODO: Remove this
-#![allow(unused)]
-
 use std::fmt;
-use web_sys;
 
-pub mod attrs;
+mod attrs;
 mod classes;
-pub mod node;
+mod node;
 mod tokenizer;
 mod util;
+
+pub use node::Node;
 pub use util::html_escape;
 
 // Able to write itself as HTML to w

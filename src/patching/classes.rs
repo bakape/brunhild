@@ -1,7 +1,6 @@
 use super::tokenizer;
 use super::util;
 use std::cell::RefCell;
-use std::cmp::{Ord, Ordering, PartialOrd};
 use std::collections::HashSet;
 use std::fmt;
 use std::iter::Iterator;

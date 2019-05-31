@@ -91,11 +91,6 @@ impl Attrs {
 	pub fn remove(&mut self, key: &str) {
 		self.0.remove(&tokenizer::tokenize(key));
 	}
-
-	// Clear all attributes
-	pub fn clear(&mut self) {
-		self.0.clear();
-	}
 }
 
 impl<'a> FromIterator<&'a (&'a str, &'a str)> for Attrs {
