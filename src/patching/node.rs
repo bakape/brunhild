@@ -5,8 +5,9 @@ use super::util;
 use std::fmt;
 use std::iter::FromIterator;
 
-const IS_TEXT: u8 = 1; // Text Node
+const TEXT_NODE: u8 = 1; // Text Node
 const IMMUTABLE: u8 = 1 << 1; // Node contents never change
+const DIRTY: u8 = 1 << 2; // Node contents not synced to DOM yet
 
 /*
 Node used for constructing DOM trees for applying patches.
@@ -17,24 +18,25 @@ or in the pending patches tree. Such relation is determined during diffing.
 pub struct Node {
 	flags: u8,
 
-	// ID of element the node is representing. This is always zero in
-	// user-created nodes and is only set, when a node has been diffed and
-	// patched into the DOM representation tree.
-	id: u16,
-
 	tag: u16,
 	class_set: u16,
 
 	// Inner text content for text nodes
 	inner_text: String,
 
+	// Node attributes, excluding "id" and "class".
+	// "id" is used internally for node addresing and can not be set.
+	// to set "class" used the dedicated methods.
 	pub attrs: Attrs,
+
+	// Children of Node
 	pub children: Vec<Node>,
 }
 
 impl Node {
 	// Create new node with only the tag field set
-	fn new(tag: &str) -> Self {
+	#[inline]
+	pub fn new(tag: &str) -> Self {
 		Self {
 			tag: tokenizer::tokenize(tag),
 			..Default::default()
@@ -42,33 +44,31 @@ impl Node {
 	}
 
 	// Create a node with predefined class list
-	fn with_classes<'a, C>(tag: &str, classes: C) -> Self
+	#[inline]
+	pub fn with_classes<'a, C>(tag: &str, classes: C) -> Self
 	where
 		C: IntoIterator<Item = &'a str>,
 	{
-		Self {
-			tag: tokenizer::tokenize(tag),
-			class_set: super::classes::tokenize(classes),
-			..Default::default()
-		}
+		let mut s = Self::new(tag);
+		s.class_set = super::classes::tokenize(classes);
+		s
 	}
 
 	// Create a node with a predefined class list and attribute map
-	fn with_attrs<'a, 'b, C, A>(tag: &str, classes: C, attrs: A) -> Self
+	#[inline]
+	pub fn with_attrs<'a, 'b, C, A>(tag: &str, classes: C, attrs: A) -> Self
 	where
 		C: IntoIterator<Item = &'a str>,
 		A: IntoIterator<Item = &'b (&'b str, &'b str)>,
 	{
-		Self {
-			tag: tokenizer::tokenize(tag),
-			class_set: super::classes::tokenize(classes),
-			attrs: Attrs::from_iter(attrs),
-			..Default::default()
-		}
+		let mut s = Self::with_classes(tag, classes);
+		s.attrs = Attrs::from_iter(attrs);
+		s
 	}
 
 	// Create a node with a predefined class list, attribute map and child list
-	fn with_children<'a, 'b, C, A>(
+	#[inline]
+	pub fn with_children<'a, 'b, C, A>(
 		tag: &str,
 		classes: C,
 		attrs: A,
@@ -78,35 +78,26 @@ impl Node {
 		C: IntoIterator<Item = &'a str>,
 		A: IntoIterator<Item = &'b (&'b str, &'b str)>,
 	{
-		Self {
-			tag: tokenizer::tokenize(tag),
-			class_set: super::classes::tokenize(classes),
-			attrs: Attrs::from_iter(attrs),
-			children: children,
-			..Default::default()
-		}
+		let mut s = Self::with_attrs(tag, classes, attrs);
+		s.children = children;
+		s
 	}
 
 	// Create a text node with set inner content.
 	// The inner text is HTML-escaped on creation.
-	fn text(text: &str) -> Self {
-		Self {
-			flags: IS_TEXT,
-			tag: 0,
-			attrs: Attrs::from_iter(
-				[("_text", util::html_escape(text).as_str())].iter(),
-			),
-			..Default::default()
-		}
+	#[inline]
+	pub fn text<'a, T: Into<&'a str>>(text: T) -> Self {
+		Self::text_unescaped(util::html_escape(text.into()))
 	}
 
 	// Create a text node with set inner content.
 	// The inner text is not HTML-escaped on creation.
-	fn text_unescaped(text: &str) -> Self {
+	#[inline]
+	pub fn text_unescaped<T: Into<String>>(text: T) -> Self {
 		Self {
-			flags: IS_TEXT,
+			flags: TEXT_NODE | DIRTY,
 			tag: 0,
-			attrs: Attrs::from_iter([("_text", text)].iter()),
+			inner_text: text.into(),
 			..Default::default()
 		}
 	}
@@ -125,13 +116,33 @@ impl Node {
 	pub fn remove_class(&mut self, class: &str) {
 		classes::remove_class(&mut self.class_set, class);
 	}
+
+	// Mark node and its contents as immutable. They will never be diffed or
+	// patched. The node will still be replaced, if its parent node is replaced.
+	#[inline]
+	pub fn mark_immutable(&mut self) {
+		self.flags |= IMMUTABLE;
+	}
+
+	// Return, if node is marked immutable
+	#[inline]
+	fn is_immutable(&self) -> bool {
+		self.flags & IMMUTABLE != 0
+	}
+
+	// Merge a possibly changed version of Self into self for patching the
+	// pending change tree
+	fn merge(&mut self, mut new: Self) {
+		if !self.is_immutable() {
+			*self = new;
+		}
+	}
 }
 
 impl Default for Node {
 	fn default() -> Self {
 		Self {
-			flags: 0,
-			id: 0,
+			flags: DIRTY,
 			tag: tokenizer::tokenize("div"),
 			class_set: 0,
 			attrs: Default::default(),
@@ -141,9 +152,45 @@ impl Default for Node {
 	}
 }
 
-impl super::WriteHTMLTo for Node {
+// Node mapped to an element exisitng in the DOM tree
+pub struct DOMNode {
+	flags: u8,
+
+	// ID of element the node is representing.
+	id: u16,
+
+	tag: u16,
+	class_set: u16,
+
+	// Inner text content for text nodes
+	inner_text: String,
+
+	// Node attributes, excluding "id" and "class".
+	// "id" is used internally for node addresing and can not be set.
+	// to set "class" used the dedicated methods.
+	pub attrs: Attrs,
+
+	// Children of Node
+	pub children: Vec<DOMNode>,
+}
+
+impl DOMNode {
+	// Return, if node is a text node
+	#[inline]
+	fn is_text(&self) -> bool {
+		self.flags & TEXT_NODE != 0
+	}
+
+	// Return, if node is marked immutable
+	#[inline]
+	fn is_immutable(&self) -> bool {
+		self.flags & IMMUTABLE != 0
+	}
+}
+
+impl super::WriteHTMLTo for DOMNode {
 	fn write_html_to<W: fmt::Write>(&self, w: &mut W) -> fmt::Result {
-		let is_text = self.flags & IS_TEXT != 0;
+		let is_text = self.is_text();
 
 		macro_rules! write_tag {
 			() => {
