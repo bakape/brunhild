@@ -6,7 +6,7 @@ mod node;
 mod tokenizer;
 mod util;
 
-pub use node::Node;
+pub use node::{ElementOptions, Node};
 pub use util::html_escape;
 
 // Able to write itself as HTML to w

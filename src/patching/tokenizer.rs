@@ -314,7 +314,9 @@ struct ArrayString {
 impl ArrayString {
 	fn new(s: &str) -> Self {
 		let mut arr: [u8; 15] = Default::default();
-		arr.copy_from_slice(s.as_bytes());
+		for (i, ch) in s.chars().enumerate() {
+			arr[i] = ch as u8;
+		}
 		Self {
 			length: s.len() as u8,
 			arr: arr,

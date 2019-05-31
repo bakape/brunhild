@@ -121,7 +121,7 @@ impl Registry {
 	}
 
 	// Convert class set of strings to token
-	fn tokenize<'a, I: IntoIterator<Item = &'a str>>(&mut self, set: I) -> u16 {
+	fn tokenize(&mut self, set: &[&str]) -> u16 {
 		// Including duplicates is the caller's fault
 		self.tokenize_set(
 			set.into_iter().map(|s| tokenizer::tokenize(s)).collect(),
@@ -181,7 +181,7 @@ impl Registry {
 }
 
 // Convert class set of strings to token
-pub fn tokenize<'a, I: IntoIterator<Item = &'a str>>(set: I) -> u16 {
+pub fn tokenize(set: &[&str]) -> u16 {
 	util::with_global(&REGISTRY, |r| r.tokenize(set))
 }
 

@@ -1,7 +1,6 @@
 use super::tokenizer;
 use std::collections::HashMap;
 use std::fmt;
-use std::iter::FromIterator;
 
 // Attribute keys that have limited set of values and thus can have their
 // values tokenized.
@@ -62,8 +61,12 @@ enum Value {
 
 impl Attrs {
 	// Create empty attribute map
-	pub fn new() -> Self {
-		Default::default()
+	pub fn new(arr: &[&(&str, &str)]) -> Self {
+		let mut s = Self::with_capacity(arr.len());
+		for (k, v) in arr.iter() {
+			s.set(k, v);
+		}
+		return s;
 	}
 
 	// Create empty attribute map with set capacity
@@ -90,21 +93,6 @@ impl Attrs {
 	// Remove attribute from node
 	pub fn remove(&mut self, key: &str) {
 		self.0.remove(&tokenizer::tokenize(key));
-	}
-}
-
-impl<'a> FromIterator<&'a (&'a str, &'a str)> for Attrs {
-	// Create new attribute map from any key-value pair iterator
-	fn from_iter<T>(iter: T) -> Self
-	where
-		T: IntoIterator<Item = &'a (&'a str, &'a str)>,
-	{
-		let iter = iter.into_iter();
-		let mut s = Self::with_capacity(iter.size_hint().0);
-		for (k, v) in iter {
-			s.set(k, v);
-		}
-		return s;
 	}
 }
 
