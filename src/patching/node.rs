@@ -104,7 +104,8 @@ impl Default for Node {
 // for each field, so that some of these can have static lifetimes and thus not
 // require runtime allocation.
 pub struct ElementOptions<'t, 'c, 'a> {
-	// Mark node as immutable
+	// Mark node and its entire subtree as immutable. Such a node will never be
+	// merged or patched and thus can improve performance.
 	pub immutable: bool,
 
 	// Element HTML tag
@@ -136,7 +137,8 @@ impl<'t, 'c, 'a> Default for ElementOptions<'t, 'c, 'a> {
 
 // Options for constructing a text Node
 pub struct TextOptions<'a> {
-	// Mark node as immutable
+	// Mark node and its entire subtree as immutable. Such a node will never be
+	// merged or patched and thus can improve performance.
 	pub immutable: bool,
 
 	// HTML-escape inner text
@@ -227,72 +229,112 @@ impl Node {
 
 	// Merge a possibly changed version of Self into self for patching the
 	// pending change tree
-	fn merge(&mut self, mut new: Self) {
+	fn merge(&mut self, new: Self) {
 		if self.is_immutable() {
 			return;
 		}
+		if !Node::nodes_match(self, &new) {
+			// Completely replace node and subtree
+			*self = new;
+		} else {
+			// The entire subtree will be marked as dirty with this.
+			// Completely replaced nodes already have the right flags.
+			self.flags |= DIRTY;
 
-		// Completely replace node and subtree
-		let replace = match &self.key {
-			Some(k) => match &new.key {
-				Some(new_k) => new_k != k,
-				None => true,
-			},
-			None => match &new.key {
-				Some(_) => true,
+			Node::merge_node(self, new);
+		}
+	}
+
+	// Return, if nodes are considered similar enough to be merged and not
+	// replaced destructively
+	fn nodes_match(old: &Node, new: &Node) -> bool {
+		(match old.key {
+			Some(k) => match new.key {
+				Some(new_k) => new_k == k,
 				None => false,
 			},
-		} || match &mut self.contents {
-			NodeContents::Text(ref mut text) => match &mut new.contents {
-				NodeContents::Element(_) => true,
-				NodeContents::Text(new_text) => {
-					std::mem::swap(text, new_text);
-					false
-				}
-			},
-			NodeContents::Element(ref mut cont) => match &mut new.contents {
+			None => new.key.is_none(),
+		} || match &old.contents {
+			NodeContents::Text(_) => match &new.contents {
+				NodeContents::Element(_) => false,
 				NodeContents::Text(_) => true,
-				NodeContents::Element(ref mut new_cont) => {
-					if new_cont.common.tag != cont.common.tag {
-						true
-					} else {
-						std::mem::swap(
-							&mut cont.common.attrs,
-							&mut new_cont.common.attrs,
-						);
-						cont.common.class_set = new_cont.common.class_set;
-
-						// TODO: Patch children
-
-						false
-					}
+			},
+			NodeContents::Element(cont) => match &new.contents {
+				NodeContents::Text(_) => false,
+				NodeContents::Element(new_cont) => {
+					new_cont.common.tag == cont.common.tag
 				}
 			},
-		};
-		if replace {
-			*self = new;
-			return;
-		}
+		})
+	}
 
+	// Merge a matching node new into old. See Node::nodes_match().
+	fn merge_node(old: &mut Node, new: Node) {
 		// TODO: When patching, being dirty should take priority over being
 		// immutable, in case immutability was added later. Explain this in a
 		// comment.
 
-		// The entire subtree will be marked as dirty with this.
-		// Completely replaced nodes already have the right flags.
-		self.flags |= DIRTY;
 		if new.is_immutable() {
-			self.flags |= IMMUTABLE;
+			old.flags |= IMMUTABLE;
 		}
 
 		// Update handle, in case it changed, to keep the pointers equal
-		self.handle = new.handle;
+		old.handle = new.handle;
+
+		match &mut old.contents {
+			NodeContents::Text(ref mut text) => match new.contents {
+				NodeContents::Text(new_text) => {
+					*text = new_text;
+				}
+				_ => (),
+			},
+			NodeContents::Element(ref mut cont) => match new.contents {
+				NodeContents::Element(new_cont) => {
+					cont.common.attrs = new_cont.common.attrs;
+					cont.common.class_set = new_cont.common.class_set;
+					Node::merge_children(&mut cont.children, new_cont.children);
+				}
+				_ => (),
+			},
+		}
 	}
 
 	// Merge a possibly changed child subtree for patching the pending change
 	// tree
-	fn merge_children(&mut self, new: &mut Vec<Node>) {
-		unimplemented!()
+	fn merge_children(old: &mut Vec<Node>, new: Vec<Node>) {
+		let mut old_it = old.iter_mut().peekable();
+		let mut new_it = new.into_iter().peekable();
+		let mut nodes_mismatched = false;
+
+		// First merge all matching children. Most of the time child lists will
+		// match, so this is the hottest loop.
+		while old_it.peek().is_some() && new_it.peek().is_some() {
+			let old_ch = old_it.next().unwrap();
+			let new_ch = new_it.next().unwrap();
+
+			if !Node::nodes_match(old_ch, &new_ch) {
+				nodes_mismatched = true;
+				break;
+			}
+			if old_ch.is_immutable() {
+				continue;
+			}
+			Node::merge_node(old_ch, new_ch);
+		}
+
+		if nodes_mismatched {
+			// Match the rest of the nodes by key, if any
+			unimplemented!();
+		} else {
+			if new_it.peek().is_some() {
+				// Append new nodes to end
+				old.extend(new_it);
+			} else if old_it.peek().is_some() {
+				// Remove nodes from end
+				let left = old_it.count();
+				old.truncate(old.len() - left);
+			}
+		}
 	}
 
 	// Take a handle for Node to allow performing actions on it after it has
