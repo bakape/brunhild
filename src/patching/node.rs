@@ -1,8 +1,10 @@
 use super::attrs::Attrs;
 use super::classes;
+use super::patching::Handle;
 use super::tokenizer;
 use super::util;
 use std::fmt;
+use std::rc::Rc;
 use wasm_bindgen::prelude::wasm_bindgen;
 
 const IMMUTABLE: u8 = 1; // Node contents never change
@@ -76,6 +78,10 @@ or in the pending patches tree. Such relation is determined during diffing.
 #[wasm_bindgen]
 pub struct Node {
 	flags: u8,
+
+	// Handle pending assignment on the next patch
+	pending_handle: Option<Rc<Handle>>,
+
 	contents: NodeContents,
 }
 
@@ -83,13 +89,14 @@ impl Default for Node {
 	fn default() -> Self {
 		Self {
 			flags: DIRTY,
+			pending_handle: None,
 			contents: Default::default(),
 		}
 	}
 }
 
-// Options for contructing an Element Node. This struct has separate lifetimes
-// for each field, so that some of these can have static lifeltimes and thus not
+// Options for constructing an Element Node. This struct has separate lifetimes
+// for each field, so that some of these can have static lifetimes and thus not
 // require runtime allocation.
 pub struct ElementOptions<'t, 'c, 'a> {
 	// Mark node as immutable
@@ -208,6 +215,14 @@ impl Node {
 			*self = new;
 		}
 	}
+
+	// Take a handle for Node to allow performing actions on it after it has
+	// been merged into the DOM tree
+	pub fn take_handle(&mut self) -> Rc<Handle> {
+		let h = Rc::new(Handle::default());
+		self.pending_handle = Some(h.clone());
+		h
+	}
 }
 
 #[test]
@@ -252,10 +267,11 @@ fn create_text_node() {
 	};
 }
 
-// Node mapped to an element exisitng in the DOM tree
+// Node mapped to an element existing in the DOM tree
 pub struct DOMNode {
 	flags: u8,
-	id: u16, // ID of element the node is representing.
+	id: u64, // ID of element the node is representing.
+	handle: Option<Rc<Handle>>,
 	contents: DOMNodeContents,
 }
 
@@ -264,6 +280,17 @@ impl DOMNode {
 	#[inline]
 	fn is_immutable(&self) -> bool {
 		self.flags & IMMUTABLE != 0
+	}
+}
+
+impl Default for DOMNode {
+	fn default() -> Self {
+		Self {
+			flags: 0,
+			id: 0,
+			handle: None,
+			contents: DOMNodeContents::Text(String::new()),
+		}
 	}
 }
 
