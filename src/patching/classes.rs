@@ -89,8 +89,11 @@ struct Registry {
 }
 
 impl Registry {
-	// Convert class set to token
-	fn tokenize_set(&mut self, mut set: Vec<u16>) -> u16 {
+	// Convert class set of strings to token.
+	// Including duplicates is the caller's fault.
+	fn tokenize(&mut self, set: &[&str]) -> u16 {
+		let mut set: Vec<u16> =
+			set.into_iter().map(|s| tokenizer::tokenize(s)).collect();
 		set.sort();
 
 		match set.len() {
@@ -120,14 +123,6 @@ impl Registry {
 		}
 	}
 
-	// Convert class set of strings to token
-	fn tokenize(&mut self, set: &[&str]) -> u16 {
-		// Including duplicates is the caller's fault
-		self.tokenize_set(
-			set.into_iter().map(|s| tokenizer::tokenize(s)).collect(),
-		)
-	}
-
 	// // Lookup class set by token and write it to w
 	fn write_html_to<W: fmt::Write>(&self, k: u16, w: &mut W) -> fmt::Result {
 		if util::IDGenerator::is_flagged(k) {
@@ -135,48 +130,6 @@ impl Registry {
 		} else {
 			self.small.write_html_to(k, w)
 		}
-	}
-
-	// Augment existing class set and return new class set ID
-	fn augment_class_set<F>(&mut self, token: &mut u16, func: F)
-	where
-		F: FnOnce(&mut HashSet<u16>),
-	{
-		macro_rules! get {
-			($x:ident) => {
-				match self.$x.get_value(*token) {
-					Some(v) => Some(v.into()),
-					None => None,
-					}
-			};
-		}
-
-		let mut old = match {
-			if util::IDGenerator::is_flagged(*token) {
-				get!(large)
-			} else {
-				get!(small)
-			}
-		} {
-			Some(v) => v,
-			None => panic!("unregistered class token lookup: {}", token),
-		};
-		func(&mut old);
-		*token = self.tokenize_set(old.into_iter().collect());
-	}
-
-	// Add class to given tokenized set and write new set ID to reference
-	fn add_class(&mut self, token: &mut u16, class: &str) {
-		self.augment_class_set(token, |old| {
-			old.insert(tokenizer::tokenize(class));
-		});
-	}
-
-	// Remove class from given tokenized set and write new set ID to reference
-	fn remove_class(&mut self, token: &mut u16, class: &str) {
-		self.augment_class_set(token, |old| {
-			old.remove(&tokenizer::tokenize(class));
-		});
 	}
 }
 
@@ -188,14 +141,4 @@ pub fn tokenize(set: &[&str]) -> u16 {
 // // Lookup class set by token and write it to w
 pub fn write_html_to<W: fmt::Write>(k: u16, w: &mut W) -> fmt::Result {
 	util::with_global(&REGISTRY, |r| r.write_html_to(k, w))
-}
-
-// Add class to given tokenized set and write new set ID to reference
-pub fn add_class(token: &mut u16, class: &str) {
-	util::with_global(&REGISTRY, |r| r.add_class(token, class));
-}
-
-// Remove class from given tokenized set and write new set ID to reference
-pub fn remove_class(token: &mut u16, class: &str) {
-	util::with_global(&REGISTRY, |r| r.remove_class(token, class));
 }

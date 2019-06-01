@@ -46,10 +46,11 @@ static TOKENIZABLE_VALUES: [&'static str; 34] = [
 ];
 
 // Compressed attribute storage with manipulation functions
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct Attrs(HashMap<u16, Value>);
 
 // Contains a value stored in one of 2 storage methods for attribute values
+#[derive(Clone)]
 enum Value {
 	// Tokenized string value
 	StringToken(u16),

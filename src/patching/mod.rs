@@ -7,7 +7,7 @@ mod patching;
 mod tokenizer;
 mod util;
 
-pub use node::{ElementOptions, Node, TextOptions};
+pub use node::{ElementOptions, Handle, Node, TextOptions};
 pub use patching::set_root;
 pub use util::html_escape;
 
