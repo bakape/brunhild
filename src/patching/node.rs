@@ -576,19 +576,14 @@ impl Handle {
 					if self.same_handle(r) {
 						Some(r)
 					} else {
-						self.lookup_cache.truncate(0);
-						None
+						self.handle_miss(r)
 					}
 				}
 				_ => {
 					// Child node in cache
 					match Handle::find_pending_by_cache(r, &self.lookup_cache) {
 						Some(n) => Some(n),
-						None => {
-							// Cache miss
-							self.lookup_cache.truncate(0);
-							self.find_pending_no_cache(r)
-						}
+						None => self.handle_miss(r),
 					}
 				}
 			}
@@ -619,6 +614,15 @@ impl Handle {
 				}
 			}
 		}
+	}
+
+	// Handle cache miss
+	fn handle_miss<'a: 'b, 'b>(
+		&mut self,
+		r: &'a mut Node,
+	) -> Option<&'b mut Node> {
+		self.lookup_cache.truncate(0);
+		self.find_pending_no_cache(r)
 	}
 
 	fn find_pending_no_cache<'a: 'b, 'b>(
