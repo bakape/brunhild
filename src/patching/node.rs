@@ -576,7 +576,7 @@ impl Handle {
 	{
 		util::with_global(&patching::PENDING, |r| {
 			// Lookup value by path cache, if any
-			match match self.lookup_cache.len() {
+			match self.lookup_cache.len() {
 				0 => {
 					// No cache
 					self.find_pending_no_cache(r)
@@ -601,13 +601,9 @@ impl Handle {
 						}
 					}
 				}
-			} {
-				Some(n) => {
-					func(n);
-					true
-				}
-				None => false,
 			}
+			.map(|n| func(n))
+			.is_some()
 		})
 	}
 
