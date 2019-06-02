@@ -79,6 +79,10 @@ struct DOMElementContents {
 pub struct Node {
 	flags: u8,
 
+	// ID of DOM element the node is representing. Can be 0 in nodes not yet
+	// patched into the DOM.
+	id: u64,
+
 	// Kee used to identify the same node, during potentially destructive
 	// patching. Only set, if this node requires persistance, like maintaining
 	// user input focus or selections.
@@ -95,6 +99,7 @@ impl Default for Node {
 		Self {
 			flags: DIRTY,
 			key: None,
+			id: 0,
 			handle: None,
 			contents: Default::default(),
 		}
@@ -544,7 +549,10 @@ impl super::WriteHTMLTo for DOMNode {
 
 // Provides methods for manipulating a Node and its subtree
 #[derive(Default)]
-pub struct Handle {}
+pub struct Handle {
+	// Last path the node was found at
+	lookup_cache: Vec<u64>,
+}
 
 impl Handle {
 	// Queue pending patches for handled node and its subtree.
@@ -566,18 +574,39 @@ impl Handle {
 	where
 		F: FnOnce(&mut Node),
 	{
-		// TODO: Lookup cache (vector of parent IDs)
-
 		util::with_global(&patching::PENDING, |r| {
-			if self.same_handle(r) {
-				// Root is the target node
-				func(r);
-				true
-			} else if let Some(n) = self.traverse_pending(r) {
-				func(n);
-				true
-			} else {
-				false
+			// Lookup value by path cache, if any
+			match match self.lookup_cache.len() {
+				0 => {
+					// No cache
+					self.find_pending_no_cache(r)
+				}
+				1 => {
+					// Root node is cached
+					if self.same_handle(r) {
+						Some(r)
+					} else {
+						self.lookup_cache.truncate(0);
+						None
+					}
+				}
+				_ => {
+					// Child node in cache
+					match Handle::find_pending_by_cache(r, &self.lookup_cache) {
+						Some(n) => Some(n),
+						None => {
+							// Cache miss
+							self.lookup_cache.truncate(0);
+							self.find_pending_no_cache(r)
+						}
+					}
+				}
+			} {
+				Some(n) => {
+					func(n);
+					true
+				}
+				None => false,
 			}
 		})
 	}
@@ -590,10 +619,54 @@ impl Handle {
 		}
 	}
 
+	// Attempt to find a node in the pending change tree using the lookup cache
+	fn find_pending_by_cache<'a: 'b, 'b>(
+		n: &'a mut Node,
+		path: &[u64],
+	) -> Option<&'b mut Node> {
+		match &mut n.contents {
+			NodeContents::Text(_) => None,
+			NodeContents::Element(cont) => {
+				match cont.children.iter_mut().find(|ch| ch.id == path[0]) {
+					Some(ch) => Handle::find_pending_by_cache(ch, &path[1..]),
+					None => None,
+				}
+			}
+		}
+	}
+
+	fn find_pending_no_cache<'a: 'b, 'b>(
+		&mut self,
+		r: &'a mut Node,
+	) -> Option<&'b mut Node> {
+		if self.same_handle(r) {
+			// Root is the target node
+			if r.id != 0 {
+				self.lookup_cache.truncate(0);
+				self.lookup_cache.push(r.id);
+			}
+			Some(r)
+		} else if let Some(res) = self.traverse_pending(r) {
+			match res.1 {
+				Some(path) => {
+					self.lookup_cache = path;
+					self.lookup_cache.reverse();
+				}
+				None => {
+					self.lookup_cache.truncate(0);
+				}
+			};
+			Some(res.0)
+		} else {
+			None
+		}
+	}
+
+	// Returns node and a reversed lookup path vector for the node, if found
 	fn traverse_pending<'a: 'b, 'b>(
 		&mut self,
 		n: &'a mut Node,
-	) -> Option<&'b mut Node> {
+	) -> Option<(&'b mut Node, Option<Vec<u64>>)> {
 		match &mut n.contents {
 			NodeContents::Text(_) => None,
 			NodeContents::Element(ref mut cont) => {
@@ -613,17 +686,41 @@ impl Handle {
 					.iter_mut()
 					.position(|ch| self.same_handle(ch))
 				{
-					Some(i) => Some(&mut cont.children[i]),
+					Some(i) => {
+						let ch = &mut cont.children[i];
+						let id = ch.id;
+						Some((
+							ch,
+							// Save target node ID, if it has been already
+							// merged into the DOM and has one
+							if id != 0 { Some(vec![id]) } else { None },
+						))
+					}
 					None => {
 						// If not found, go a level deeper on each node
-						match cont
-							.children
+						let parent_id = n.id; // Copy prevents borrow of n
+						cont.children
 							.iter_mut()
 							.find_map(|ch| self.traverse_pending(ch))
-						{
-							Some(ch) => Some(ch),
-							None => None,
-						}
+							// If found node has a lookup path cache
+							// building and this node has a known ID, append
+							// it to the path cache vector
+							.map(|res| {
+								(
+									res.0,
+									match res.1 {
+										Some(mut path) => {
+											if parent_id != 0 {
+												path.push(parent_id);
+												Some(path)
+											} else {
+												None
+											}
+										}
+										None => None,
+									},
+								)
+							})
 					}
 				}
 			}
