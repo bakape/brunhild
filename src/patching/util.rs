@@ -72,10 +72,7 @@ impl<T: Eq + Hash + Clone + super::WriteHTMLTo> TokenMap<T> {
 
 	// Get a copy of value from token, if it is in the map
 	pub fn get_value(&self, token: u16) -> Option<T> {
-		match self.forward.get(&token) {
-			Some(v) => Some(v.clone()),
-			None => None,
-		}
+		self.forward.get(&token).map(|v| v.clone())
 	}
 
 	// Insert new token and value into map
@@ -124,10 +121,7 @@ impl<T: Eq + Hash + Clone + super::WriteHTMLTo> PointerTokenMap<T> {
 
 	// Get a copy of value from token, if it is in the map
 	pub fn get_value(&self, token: u16) -> Option<T> {
-		match self.forward.get(&token) {
-			Some(v) => Some(unsafe { (*v.0).clone() }),
-			None => None,
-		}
+		self.forward.get(&token).map(|v| unsafe { (*v.0).clone() })
 	}
 
 	// Insert new token and value into map
