@@ -334,21 +334,11 @@ impl Node {
 			new = new_it.collect();
 
 			// Check we actually have any keys
-			let mut have_keys = false;
-			for ch in old.iter().skip(i) {
-				if ch.key.is_some() {
-					have_keys = true;
-					break;
-				}
-			}
-			if !have_keys {
-				for ch in new.iter() {
-					if ch.key.is_some() {
-						have_keys = true;
-						break;
-					}
-				}
-			}
+			let have_keys = old
+				.iter()
+				.skip(i)
+				.chain(new.iter())
+				.any(|ch| ch.key.is_some());
 
 			if !have_keys {
 				// Destructively swap in nodes
