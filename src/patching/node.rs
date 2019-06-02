@@ -478,7 +478,7 @@ pub struct DOMNode {
 	// ID of element the node is representing.
 	id: u64,
 
-	// Kee used to identify the same node, during potentially destructive
+	// Key used to identify the same node, during potentially destructive
 	// patching. Only set, if this node requires persistance, like maintaining
 	// user input focus or selections.
 	key: Option<u64>,
