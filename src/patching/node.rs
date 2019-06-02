@@ -3,6 +3,7 @@ use super::classes;
 use super::patching;
 use super::tokenizer;
 use super::util;
+use std::collections::HashMap;
 use std::fmt;
 use std::rc::Rc;
 
@@ -301,7 +302,7 @@ impl Node {
 
 	// Merge a possibly changed child subtree for patching the pending change
 	// tree
-	fn merge_children(old: &mut Vec<Node>, new: Vec<Node>) {
+	fn merge_children(old: &mut Vec<Node>, mut new: Vec<Node>) {
 		let mut old_it = old.iter_mut().peekable();
 		let mut new_it = new.into_iter().peekable();
 		let mut nodes_mismatched = false;
@@ -324,8 +325,72 @@ impl Node {
 
 		if nodes_mismatched {
 			// Match the rest of the nodes by key, if any
-			unimplemented!();
+			let i = old_it.count();
+			new = new_it.collect();
+
+			// Check we actually have any keys
+			let mut have_keys = false;
+			for ch in old.iter().skip(i) {
+				if ch.key.is_some() {
+					have_keys = true;
+					break;
+				}
+			}
+			if !have_keys {
+				for ch in new.iter() {
+					if ch.key.is_some() {
+						have_keys = true;
+						break;
+					}
+				}
+			}
+
+			if !have_keys {
+				// Destructively swap in nodes
+				let mut old_it = old.iter_mut().skip(i).peekable();
+				new_it = new.into_iter().peekable();
+				while old_it.peek().is_some() && new_it.peek().is_some() {
+					*old_it.next().unwrap() = new_it.next().unwrap();
+				}
+
+				// Handle mismatched node counts using appends or deletes
+				if new_it.peek().is_some() {
+					// Append new nodes to end
+					old.extend(new_it);
+				} else if old_it.peek().is_some() {
+					// Remove nodes from end
+					let left = old_it.count();
+					old.truncate(old.len() - left);
+				}
+			} else {
+				// Perform matching by key and destructively swap in the rest
+				let mut old_by_key: HashMap<u64, Node> = old
+					.split_off(i)
+					.into_iter()
+					.filter_map(|ch| match ch.key {
+						Some(k) => Some((k, ch)),
+						None => None,
+					})
+					.collect();
+				for new_ch in new {
+					match new_ch.key {
+						Some(k) => match old_by_key.remove(&k) {
+							Some(mut old_ch) => {
+								Node::merge_node(&mut old_ch, new_ch);
+								old.push(old_ch);
+							}
+							None => {
+								old.push(new_ch);
+							}
+						},
+						None => {
+							old.push(new_ch);
+						}
+					}
+				}
+			}
 		} else {
+			// Handle mismatched node counts using appends or deletes
 			if new_it.peek().is_some() {
 				// Append new nodes to end
 				old.extend(new_it);
