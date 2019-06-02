@@ -552,7 +552,7 @@ impl Handle {
 			old.merge(new);
 		});
 		if found {
-			unsafe { patching::DIRTY = true };
+			patching::schedule_patch();
 		}
 		return found;
 	}

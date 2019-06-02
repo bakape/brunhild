@@ -11,9 +11,16 @@ license = "MIT"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-web-sys = "0.3.22"
 js-sys = "0.3.22"
 wasm-bindgen = "0.2.44"
+
+
+[dependencies.web-sys]
+version = "0.3.22"
+features = [
+  'Document',
+  'Window',
+]
 
 [dev-dependencies]
 wasm-bindgen-test = "0.2.44"
