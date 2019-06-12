@@ -2,6 +2,7 @@ use std::borrow::BorrowMut;
 use std::collections::HashMap;
 use std::fmt;
 use std::hash::{Hash, Hasher};
+use web_sys;
 
 // Efficient append-only string builder for reducing reallocations
 pub struct Appender {
@@ -198,4 +199,14 @@ pub fn html_escape(s: &str) -> String {
 		};
 	}
 	escaped
+}
+
+// Get JS window global
+pub fn window() -> web_sys::Window {
+	web_sys::window().expect("no window global")
+}
+
+// Get page document
+pub fn document() -> web_sys::Document {
+	window().document().expect("no document on window")
 }

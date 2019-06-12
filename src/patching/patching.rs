@@ -3,9 +3,7 @@ use super::util;
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::Once;
-
-use wasm_bindgen::{prelude, JsCast};
-use web_sys;
+use wasm_bindgen::{prelude, JsCast, JsValue};
 
 thread_local! {
 	// Tree with changes pending for flush into the DOM
@@ -15,8 +13,9 @@ thread_local! {
 	pub static DOM: RefCell<DOMNode> = Default::default();
 
 	// JS function closure for patching function
-	static PATCH_FUNCTION: RefCell<Option<prelude::Closure<Fn()>>>
-		= RefCell::new(None);
+	static PATCH_FUNCTION: RefCell<
+		Option<prelude::Closure<Fn() -> Result<(), JsValue>>>,
+	> = RefCell::new(None);
 }
 
 // Set the root Node to be attached directly under <body>.
@@ -36,7 +35,9 @@ pub fn schedule_patch() {
 	static CREATE_CLOSURE: Once = Once::new();
 	CREATE_CLOSURE.call_once(|| {
 		util::with_global(&PATCH_FUNCTION, |f| {
-			*f = Some(prelude::Closure::wrap(Box::new(patch) as Box<Fn()>))
+			*f = Some(prelude::Closure::wrap(
+				Box::new(patch) as Box<Fn() -> Result<(), JsValue>>
+			))
 		});
 	});
 
@@ -44,8 +45,7 @@ pub fn schedule_patch() {
 	if !unsafe { SCHEDULED } {
 		unsafe { SCHEDULED = true };
 		util::with_global(&PATCH_FUNCTION, |f| {
-			web_sys::window()
-				.unwrap()
+			util::window()
 				.request_animation_frame(
 					f.as_ref().unwrap().as_ref().unchecked_ref(),
 				)
@@ -55,6 +55,8 @@ pub fn schedule_patch() {
 }
 
 // Diff and patch pending changes to DOM
-fn patch() {
-	unimplemented!()
+fn patch() -> Result<(), JsValue> {
+	util::with_global(&DOM, |dom_root| {
+		util::with_global(&PENDING, |pending_root| dom_root.diff(pending_root))
+	})
 }

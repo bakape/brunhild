@@ -20,6 +20,8 @@ version = "0.3.22"
 features = [
   'Document',
   'Window',
+  'HtmlElement',
+  'Element',
 ]
 
 [dev-dependencies]

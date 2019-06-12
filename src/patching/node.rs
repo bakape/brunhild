@@ -3,9 +3,11 @@ use super::classes;
 use super::patching;
 use super::tokenizer;
 use super::util;
+use super::WriteHTMLTo;
 use std::collections::HashMap;
 use std::fmt;
 use std::rc::Rc;
+use wasm_bindgen::JsValue;
 
 const IMMUTABLE: u8 = 1; // Node contents never change
 const DIRTY: u8 = 1 << 1; // Node contents not synced to DOM yet
@@ -254,32 +256,23 @@ impl Node {
 	// Return, if nodes are considered similar enough to be merged and not
 	// replaced destructively
 	fn nodes_match(old: &Node, new: &Node) -> bool {
-		(match old.key {
-			Some(k) => match new.key {
-				Some(new_k) => new_k == k,
-				None => false,
-			},
-			None => new.key.is_none(),
-		} || match &old.contents {
-			NodeContents::Text(_) => match &new.contents {
-				NodeContents::Element(_) => false,
-				NodeContents::Text(_) => true,
-			},
-			NodeContents::Element(cont) => match &new.contents {
-				NodeContents::Text(_) => false,
-				NodeContents::Element(new_cont) => {
-					new_cont.common.tag == cont.common.tag
-				}
-			},
-		})
+		old.key == new.key
+			&& match &old.contents {
+				NodeContents::Text(_) => match &new.contents {
+					NodeContents::Element(_) => false,
+					NodeContents::Text(_) => true,
+				},
+				NodeContents::Element(cont) => match &new.contents {
+					NodeContents::Text(_) => false,
+					NodeContents::Element(new_cont) => {
+						new_cont.common.tag == cont.common.tag
+					}
+				},
+			}
 	}
 
 	// Merge a matching node new into old. See Node::nodes_match().
 	fn merge_node(old: &mut Node, new: Node) {
-		// TODO: When patching, being dirty should take priority over being
-		// immutable, in case immutability was added later. Explain this in a
-		// comment.
-
 		if new.is_immutable() {
 			old.flags |= IMMUTABLE;
 		}
@@ -484,6 +477,84 @@ impl DOMNode {
 	fn is_immutable(&self) -> bool {
 		self.flags & IMMUTABLE != 0
 	}
+
+	// Return, if nodes are considered similar enough to be merged and not
+	// replaced destructively
+	fn nodes_match(old: &DOMNode, new: &Node) -> bool {
+		old.key == new.key
+			&& match &old.contents {
+				DOMNodeContents::Text(_) => match &new.contents {
+					NodeContents::Element(_) => false,
+					NodeContents::Text(_) => true,
+				},
+				DOMNodeContents::Element(cont) => match &new.contents {
+					NodeContents::Text(_) => false,
+					NodeContents::Element(new_cont) => {
+						new_cont.common.tag == cont.common.tag
+					}
+				},
+			}
+	}
+
+	// Diff and patch new node into existing DOM node
+	pub fn diff(&mut self, new: &mut Node) -> Result<(), JsValue> {
+		if self.is_immutable() {
+			return Ok(());
+		}
+		if new.flags & DIRTY != 0 {
+			return self.patch(new);
+		}
+		if let DOMNodeContents::Element(old_cont) = &mut self.contents {
+			if let NodeContents::Element(new_cont) = &mut new.contents {
+				for (new_ch, old_ch) in old_cont
+					.children
+					.iter_mut()
+					.zip(new_cont.children.iter_mut())
+				{
+					new_ch.diff(old_ch)?;
+				}
+			}
+		}
+		Ok(())
+	}
+
+	// Patch changed subtree into self and apply changes to the DOM
+	fn patch(&mut self, new: &mut Node) -> Result<(), JsValue> {
+		if !DOMNode::nodes_match(self, new) {
+			return DOMNode::replace_node(self, new);
+		}
+
+		unimplemented!()
+	}
+
+	// Completely replace old node and its subtree with new one
+	fn replace_node(old: &mut DOMNode, new: &mut Node) -> Result<(), JsValue> {
+		let old_id = old.id;
+		let mut w = util::Appender::new();
+		*old = new.into();
+		match old.write_html_to(&mut w) {
+			Ok(_) => (),
+			Err(e) => {
+				return Err(format!("{}", e).into());
+			}
+		};
+		let html = w.dump();
+
+		let doc = util::document();
+		if old.id == 0 {
+			// Initial root node
+			doc.body().expect("no document body").set_inner_html(&html);
+			Ok(())
+		} else {
+			match doc.get_element_by_id(&format!("bh-{}", old_id)) {
+				Some(el) => {
+					el.set_outer_html(&html);
+					Ok(())
+				}
+				None => Err(format!("element not found: bh-{}", old_id).into()),
+			}
+		}
+	}
 }
 
 impl Default for DOMNode {
@@ -494,6 +565,37 @@ impl Default for DOMNode {
 			key: None,
 			handle: None,
 			contents: DOMNodeContents::Text(String::new()),
+		}
+	}
+}
+
+impl From<&mut Node> for DOMNode {
+	// Create a new DOM node
+	fn from(new: &mut Node) -> Self {
+		static mut ID_COUNTER: u64 = 0;
+		unsafe { ID_COUNTER += 1 };
+		let id = unsafe { ID_COUNTER };
+
+		new.flags &= !DIRTY;
+		new.id = id;
+		Self {
+			flags: new.flags,
+			id: id,
+			key: new.key,
+			handle: new.handle.clone(),
+			contents: match &mut new.contents {
+				NodeContents::Text(text) => DOMNodeContents::Text(text.clone()),
+				NodeContents::Element(cont) => {
+					DOMNodeContents::Element(DOMElementContents {
+						common: cont.common.clone(),
+						children: cont
+							.children
+							.iter_mut()
+							.map(|ch| ch.into())
+							.collect(),
+					})
+				}
+			},
 		}
 	}
 }
