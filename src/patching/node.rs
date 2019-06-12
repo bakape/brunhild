@@ -532,12 +532,9 @@ impl DOMNode {
 		let old_id = old.id;
 		let mut w = util::Appender::new();
 		*old = new.into();
-		match old.write_html_to(&mut w) {
-			Ok(_) => (),
-			Err(e) => {
-				return Err(format!("{}", e).into());
-			}
-		};
+		if let Err(e) = old.write_html_to(&mut w) {
+			return Err(format!("{}", e).into());
+		}
 		let html = w.dump();
 
 		let doc = util::document();
