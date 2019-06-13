@@ -459,7 +459,7 @@ pub struct DOMNode {
 	flags: u8,
 
 	// ID of element the node is representing.
-	id: u64,
+	pub id: u64,
 
 	// Key used to identify the same node, during potentially destructive
 	// patching. Only set, if this node requires persistance, like maintaining
@@ -467,6 +467,9 @@ pub struct DOMNode {
 	key: Option<u64>,
 
 	handle: Option<Rc<Handle>>,
+
+	// Lazy getter for corresponding JS Element object
+	element: util::LazyElement,
 
 	contents: DOMNodeContents,
 }
@@ -524,33 +527,43 @@ impl DOMNode {
 			return DOMNode::replace_node(self, new);
 		}
 
-		unimplemented!()
+		new.flags &= !DIRTY;
+		new.id = self.id;
+		self.key = new.key;
+		self.handle = new.handle.clone();
+		match &mut self.contents {
+			DOMNodeContents::Text(ref mut old_text) => {
+				if let NodeContents::Text(new_text) = &new.contents {
+					if old_text != new_text {
+						*old_text = new_text.clone();
+						self.element.get()?.set_text_content(Some(old_text));
+					}
+				}
+			}
+			DOMNodeContents::Element(ref mut old_cont) => {
+				if let NodeContents::Text(new_cont) = &new.contents {
+					unimplemented!()
+				}
+			}
+		};
+		Ok(())
 	}
 
 	// Completely replace old node and its subtree with new one
-	fn replace_node(old: &mut DOMNode, new: &mut Node) -> Result<(), JsValue> {
-		let old_id = old.id;
+	pub fn replace_node(&mut self, new: &mut Node) -> Result<(), JsValue> {
+		let old_element = self.element.get()?;
+		*self = new.into();
+		old_element.set_outer_html(&self.html()?);
+		Ok(())
+	}
+
+	// Format element and subtree as HTML
+	pub fn html(&self) -> Result<String, JsValue> {
 		let mut w = util::Appender::new();
-		*old = new.into();
-		if let Err(e) = old.write_html_to(&mut w) {
+		if let Err(e) = self.write_html_to(&mut w) {
 			return Err(format!("{}", e).into());
 		}
-		let html = w.dump();
-
-		let doc = util::document();
-		if old.id == 0 {
-			// Initial root node
-			doc.body().expect("no document body").set_inner_html(&html);
-			Ok(())
-		} else {
-			match doc.get_element_by_id(&format!("bh-{}", old_id)) {
-				Some(el) => {
-					el.set_outer_html(&html);
-					Ok(())
-				}
-				None => Err(format!("element not found: bh-{}", old_id).into()),
-			}
-		}
+		Ok(w.dump())
 	}
 }
 
@@ -561,6 +574,7 @@ impl Default for DOMNode {
 			id: 0,
 			key: None,
 			handle: None,
+			element: Default::default(),
 			contents: DOMNodeContents::Text(String::new()),
 		}
 	}
@@ -580,6 +594,7 @@ impl From<&mut Node> for DOMNode {
 			id: id,
 			key: new.key,
 			handle: new.handle.clone(),
+			element: util::LazyElement::new(id),
 			contents: match &mut new.contents {
 				NodeContents::Text(text) => DOMNodeContents::Text(text.clone()),
 				NodeContents::Element(cont) => {

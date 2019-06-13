@@ -1,5 +1,6 @@
 use super::node::{DOMNode, Handle, Node};
 use super::util;
+use super::WriteHTMLTo;
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::Once;
@@ -57,6 +58,18 @@ pub fn schedule_patch() {
 // Diff and patch pending changes to DOM
 fn patch() -> Result<(), JsValue> {
 	util::with_global(&DOM, |dom_root| {
-		util::with_global(&PENDING, |pending_root| dom_root.diff(pending_root))
+		util::with_global(&PENDING, |pending_root| {
+			if dom_root.id == 0 {
+				// Initial root node
+				*dom_root = pending_root.into();
+				util::document()
+					.body()
+					.expect("no document body")
+					.set_inner_html(&dom_root.html()?);
+				Ok(())
+			} else {
+				dom_root.diff(pending_root)
+			}
+		})
 	})
 }

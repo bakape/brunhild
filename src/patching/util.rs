@@ -2,8 +2,9 @@ use std::borrow::BorrowMut;
 use std::collections::HashMap;
 use std::fmt;
 use std::hash::{Hash, Hasher};
-use web_sys;
 
+use wasm_bindgen::JsValue;
+use web_sys;
 // Efficient append-only string builder for reducing reallocations
 pub struct Appender {
 	buffers: Vec<String>,
@@ -209,4 +210,38 @@ pub fn window() -> web_sys::Window {
 // Get page document
 pub fn document() -> web_sys::Document {
 	window().document().expect("no document on window")
+}
+
+// Lazily retrieves an element by its ID
+#[derive(Default)]
+pub struct LazyElement {
+	id: u64,
+	element: Option<web_sys::Element>,
+}
+
+impl LazyElement {
+	pub fn new(id: u64) -> Self {
+		Self {
+			id: id,
+			element: None,
+		}
+	}
+
+	// Retrieve JS element reference or cached value
+	pub fn get(&mut self) -> Result<web_sys::Element, JsValue> {
+		match &mut self.element {
+			Some(el) => Ok(el.clone()),
+			None => {
+				match document().get_element_by_id(&format!("bh-{}", self.id)) {
+					Some(el) => {
+						self.element = Some(el.clone());
+						Ok(el)
+					}
+					None => {
+						Err(format!("element not found: bh-{}", self.id).into())
+					}
+				}
+			}
+		}
+	}
 }
