@@ -124,7 +124,7 @@ impl Registry {
 		}
 	}
 
-	// // Lookup class set by token and write it to w
+	// Lookup class set by token and write it to w
 	fn write_html_to<W: fmt::Write>(&self, k: u16, w: &mut W) -> fmt::Result {
 		if util::IDGenerator::is_flagged(k) {
 			self.large.get_value(k).write_html_to(w)

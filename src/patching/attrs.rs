@@ -87,10 +87,7 @@ impl Attrs {
 	pub fn set(&mut self, key: &str, val: &str) {
 		match key {
 			"id" | "class" => {
-				panic!(format!(
-					"manually setting attribute not supported: {}",
-					key
-				));
+				panic!("manually setting attribute not supported: {}", key);
 			}
 			_ => {
 				self.0.insert(

@@ -11,6 +11,7 @@ https://developer.mozilla.org/en-US/docs/Web/HTML/Element
 https://developer.mozilla.org/en-US/docs/Web/HTML/Attributes
 
 NOTE: Some functions harcode indexes into this. Do not change lightly.
+constexpr when?
 */
 static PREDEFINED: [&'static str; 285] = [
 	"a",

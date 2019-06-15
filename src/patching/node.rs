@@ -547,12 +547,26 @@ impl DOMNode {
 			}
 			DOMNodeContents::Element(ref mut old_cont) => {
 				if let NodeContents::Element(new_cont) = &mut new.contents {
+					// Patch attributes
 					old_cont
 						.common
 						.attrs
 						.patch(&mut self.element, &mut new_cont.common.attrs)?;
 
-					// TODO: Patch classes
+					// Patch classes
+					if old_cont.common.class_set != new_cont.common.class_set {
+						let mut w = String::with_capacity(32);
+						classes::write_html_to(
+							new_cont.common.class_set,
+							&mut w,
+						)
+						.map_err(|e| JsValue::from(format!("{}", e)))?;
+						self.element.get()?.set_attribute("class", &w)?;
+
+						old_cont.common.class_set = new_cont.common.class_set;
+					}
+
+
 					// TODO: Patch children
 					unimplemented!()
 				}
