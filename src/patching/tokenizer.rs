@@ -391,12 +391,10 @@ impl Registry {
 			""
 		} else if k <= PREDEFINED.len() as u16 {
 			PREDEFINED[k as usize - 1]
+		} else if util::IDGenerator::is_flagged(k) {
+			self.large.get_value(k).as_ref()
 		} else {
-			if util::IDGenerator::is_flagged(k) {
-				self.large.get_value(k).as_ref()
-			} else {
-				self.small.get_value(k).as_ref()
-			}
+			self.small.get_value(k).as_ref()
 		}
 	}
 }

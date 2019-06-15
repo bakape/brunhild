@@ -1,10 +1,14 @@
-use std::borrow::{BorrowMut, Borrow};
+use super::node::DOMNode;
+use std::borrow::{Borrow, BorrowMut};
 use std::collections::HashMap;
+use std::convert::TryFrom;
+use std::fmt::Display;
 use std::fmt;
 use std::hash::{Hash, Hasher};
 
 use wasm_bindgen::JsValue;
 use web_sys;
+
 // Efficient append-only string builder for reducing reallocations
 pub struct Appender {
 	buffers: Vec<String>,
@@ -236,4 +240,23 @@ impl LazyElement {
 			}
 		}
 	}
+}
+
+impl TryFrom<&DOMNode> for LazyElement {
+	type Error = JsValue;
+
+	// Create a fresh element not inserted into the DOM from DOMNode HTML
+	fn try_from(node: &DOMNode) -> Result<Self, JsValue> {
+		let el = document().create_element("div")?;
+		el.set_outer_html(&node.html()?);
+		Ok(Self {
+			id: node.id,
+			element: Some(el),
+		})
+	}
+}
+
+// Cast Rust error to JSValue to be thrown as exception
+pub fn cast_error<T: Display>(e: T) -> JsValue {
+	JsValue::from(format!("{}", e))
 }

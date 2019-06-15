@@ -23,6 +23,8 @@ features = [
   'HtmlElement',
   'Element',
   'Node',
+  'DocumentFragment',
+  'HtmlTemplateElement',
 ]
 
 [dev-dependencies]

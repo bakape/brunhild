@@ -7,7 +7,7 @@ use super::WriteHTMLTo;
 use std::collections::HashMap;
 use std::fmt;
 use std::rc::Rc;
-use wasm_bindgen::JsValue;
+use wasm_bindgen::{JsCast, JsValue};
 
 const IMMUTABLE: u8 = 1; // Node contents never change
 const DIRTY: u8 = 1 << 1; // Node contents not synced to DOM yet
@@ -404,8 +404,8 @@ impl Node {
 	// 	- Changing the tag of on a element node
 	// 	- Changing the key of a node
 	// 	- Removing a node
-	// 	- Changing the order of exiting child nodes in a list of child nodes, if
-	// 	  the nodes do not have the "key" property set to prevent such
+	// 	- Changing the order of existing child nodes in a list of child nodes,
+	// 	  if the nodes do not have the "key" property set to prevent such
 	// 	  destructive changes.
 	// It is the responsibility of the library user to be aware of this handle
 	// invalidation and not destructively path the parent subtree, when not
@@ -415,48 +415,6 @@ impl Node {
 		self.handle = Some(h.clone());
 		h
 	}
-}
-
-#[test]
-fn create_element_node() {
-	#[allow(unused)]
-	let node = Node::element(&ElementOptions {
-		tag: "span",
-		classes: &["class1", "class2"],
-		attributes: &[&("disabled", ""), &("width", "64")],
-		..Default::default()
-	});
-}
-
-#[test]
-fn create_element_node_with_children() {
-	#[allow(unused)]
-	let node = Node::with_children(
-		&ElementOptions {
-			tag: "span",
-			classes: &["class1", "class2"],
-			attributes: &[&("disabled", ""), &("width", "64")],
-			..Default::default()
-		},
-		vec![Node::element(&ElementOptions {
-			tag: "span",
-			classes: &["class1", "class2"],
-			attributes: &[&("disabled", ""), &("width", "64")],
-			..Default::default()
-		})],
-	);
-}
-
-#[test]
-fn create_text_node() {
-	let node = Node::text(&TextOptions {
-		text: "<span>",
-		..Default::default()
-	});
-	match node.contents {
-		NodeContents::Text(t) => assert_eq!(&t, "&lt;span&gt;"),
-		_ => assert!(false),
-	};
 }
 
 // Node mapped to an element existing in the DOM tree
@@ -560,18 +518,85 @@ impl DOMNode {
 							new_cont.common.class_set,
 							&mut w,
 						)
-						.map_err(|e| JsValue::from(format!("{}", e)))?;
+						.map_err(util::cast_error)?;
 						self.element.get()?.set_attribute("class", &w)?;
 
 						old_cont.common.class_set = new_cont.common.class_set;
 					}
 
-
-					// TODO: Patch children
-					unimplemented!()
+					DOMNode::patch_children(
+						&mut self.element,
+						&mut old_cont.children,
+						&mut new_cont.children,
+					)?;
 				}
 			}
 		};
+		Ok(())
+	}
+
+	// Diff and patch 2 child lists
+	fn patch_children(
+		parent: &mut util::LazyElement,
+		old: &mut Vec<DOMNode>,
+		new: &mut Vec<Node>,
+	) -> Result<(), JsValue> {
+		let mut old_it = old.iter_mut().peekable();
+		let mut new_it = new.iter_mut().peekable();
+		let mut nodes_mismatched = false;
+		let mut i = 0;
+
+		// First patch all matching children. Most of the time child lists will
+		// match, so this is the hottest loop.
+		while old_it.peek().is_some() && new_it.peek().is_some() {
+			let old_ch = old_it.next().unwrap();
+			let new_ch = new_it.next().unwrap();
+
+			if !DOMNode::nodes_match(old_ch, &new_ch) {
+				nodes_mismatched = true;
+				break;
+			}
+			i += 1;
+			if old_ch.is_immutable() {
+				continue;
+			}
+			old_ch.patch(new_ch)?;
+		}
+
+		if nodes_mismatched {
+			// Match the rest of the nodes by key, if any
+
+			unimplemented!()
+		} else {
+			// Handle mismatched node counts using appends, prepends or deletes
+			if new_it.peek().is_some() {
+				// Append new nodes to end
+
+				let mut w = util::Appender::new();
+				old.reserve(new_it.size_hint().0);
+				for new_ch in new_it {
+					let dom_ch: DOMNode = new_ch.into();
+					dom_ch.write_html_to(&mut w).map_err(util::cast_error)?;
+					old.push(dom_ch);
+				}
+
+				let template = util::document().create_element("template")?;
+				template.set_inner_html(&w.dump());
+				parent.get()?.append_child(
+					&template
+						.unchecked_into::<web_sys::HtmlTemplateElement>()
+						.content() as &web_sys::Node,
+				)?;
+			} else if old_it.peek().is_some() {
+				// Remove nodes from end
+
+				for old_ch in old_it {
+					old_ch.element.get()?.remove();
+				}
+				old.truncate(i);
+			}
+		}
+
 		Ok(())
 	}
 
@@ -587,7 +612,7 @@ impl DOMNode {
 	pub fn html(&self) -> Result<String, JsValue> {
 		let mut w = util::Appender::new();
 		if let Err(e) = self.write_html_to(&mut w) {
-			return Err(format!("{}", e).into());
+			return Err(util::cast_error(e));
 		}
 		Ok(w.dump())
 	}
@@ -858,4 +883,46 @@ impl Handle {
 	}
 
 	// TODO: Event handling
+}
+
+#[test]
+fn create_element_node() {
+	#[allow(unused)]
+	let node = Node::element(&ElementOptions {
+		tag: "span",
+		classes: &["class1", "class2"],
+		attributes: &[&("disabled", ""), &("width", "64")],
+		..Default::default()
+	});
+}
+
+#[test]
+fn create_element_node_with_children() {
+	#[allow(unused)]
+	let node = Node::with_children(
+		&ElementOptions {
+			tag: "span",
+			classes: &["class1", "class2"],
+			attributes: &[&("disabled", ""), &("width", "64")],
+			..Default::default()
+		},
+		vec![Node::element(&ElementOptions {
+			tag: "span",
+			classes: &["class1", "class2"],
+			attributes: &[&("disabled", ""), &("width", "64")],
+			..Default::default()
+		})],
+	);
+}
+
+#[test]
+fn create_text_node() {
+	let node = Node::text(&TextOptions {
+		text: "<span>",
+		..Default::default()
+	});
+	match node.contents {
+		NodeContents::Text(t) => assert_eq!(&t, "&lt;span&gt;"),
+		_ => assert!(false),
+	};
 }
