@@ -35,7 +35,7 @@ struct ElementContentsCommon {
 	class_set: u16,
 
 	// Node attributes, excluding "id" and "class".
-	// "id" is used internally for node addresing and can not be set.
+	// "id" is used internally for node addressing and can not be set.
 	// to set "class" used the dedicated methods.
 	attrs: Attrs,
 }
@@ -173,7 +173,12 @@ impl<'a> Default for TextOptions<'a> {
 }
 
 impl Node {
-	// Create an Element Node
+	// Create an Element Node.
+	//
+	// # Panics
+	//
+	// Setting element "id" or "class" attributes is not supported. Panics,
+	// if key in ("id", "class")
 	pub fn element(opts: &ElementOptions) -> Self {
 		let mut s = Self {
 			contents: NodeContents::Element(ElementContents {
@@ -541,7 +546,14 @@ impl DOMNode {
 				}
 			}
 			DOMNodeContents::Element(ref mut old_cont) => {
-				if let NodeContents::Text(new_cont) = &new.contents {
+				if let NodeContents::Element(new_cont) = &mut new.contents {
+					old_cont
+						.common
+						.attrs
+						.patch(&mut self.element, &mut new_cont.common.attrs)?;
+
+					// TODO: Patch classes
+					// TODO: Patch children
 					unimplemented!()
 				}
 			}
@@ -619,9 +631,9 @@ impl super::WriteHTMLTo for DOMNode {
 				write!(w, "<span id=\"bh-{}\">{}</span>", self.id, text)
 			}
 			DOMNodeContents::Element(cont) => {
-				w.write_char('<')?;
-				tokenizer::write_html_to(cont.common.tag, w)?;
-				write!(w, " id=\"bh-{}\"", self.id)?;
+				tokenizer::get_value(cont.common.tag, |tag| {
+					write!(w, "<{} id=\"bh-{}\"", tag, self.id)
+				})?;
 				if cont.common.class_set != 0 {
 					w.write_str(" class=")?;
 					classes::write_html_to(cont.common.class_set, w)?;
@@ -643,9 +655,9 @@ impl super::WriteHTMLTo for DOMNode {
 					}
 				};
 
-				w.write_str("</")?;
-				tokenizer::write_html_to(cont.common.tag, w)?;
-				w.write_char('>')
+				tokenizer::get_value(cont.common.tag, |tag| {
+					write!(w, "</{}>", tag)
+				})
 			}
 		}
 	}
@@ -678,7 +690,7 @@ impl Handle {
 	where
 		F: FnOnce(&mut Node),
 	{
-		util::with_global(&patching::PENDING, |r| {
+		util::with_global_mut(&patching::PENDING, |r| {
 			// Lookup value by path cache, if any
 			match self.lookup_cache.len() {
 				0 => {

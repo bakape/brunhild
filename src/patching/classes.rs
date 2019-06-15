@@ -1,5 +1,6 @@
 use super::tokenizer;
 use super::util;
+use super::WriteHTMLTo;
 use std::cell::RefCell;
 use std::collections::HashSet;
 use std::fmt;
@@ -46,7 +47,7 @@ impl super::WriteHTMLTo for ArrayClassSet {
 			if i != 0 {
 				w.write_char(' ')?;
 			}
-			tokenizer::write_html_to(*id, w)?;
+			tokenizer::get_value(*id, |s| w.write_str(s))?;
 		}
 		Ok(())
 	}
@@ -74,7 +75,7 @@ impl super::WriteHTMLTo for VectorClassSet {
 			if i != 0 {
 				w.write_char(' ')?;
 			}
-			tokenizer::write_html_to(*id, w)?;
+			tokenizer::get_value(*id, |s| w.write_str(s))?;
 		}
 		Ok(())
 	}
@@ -126,19 +127,19 @@ impl Registry {
 	// // Lookup class set by token and write it to w
 	fn write_html_to<W: fmt::Write>(&self, k: u16, w: &mut W) -> fmt::Result {
 		if util::IDGenerator::is_flagged(k) {
-			self.large.write_html_to(k, w)
+			self.large.get_value(k).write_html_to(w)
 		} else {
-			self.small.write_html_to(k, w)
+			self.small.get_value(k).write_html_to(w)
 		}
 	}
 }
 
 // Convert class set of strings to token
 pub fn tokenize(set: &[&str]) -> u16 {
-	util::with_global(&REGISTRY, |r| r.tokenize(set))
+	util::with_global_mut(&REGISTRY, |r| r.tokenize(set))
 }
 
 // // Lookup class set by token and write it to w
 pub fn write_html_to<W: fmt::Write>(k: u16, w: &mut W) -> fmt::Result {
-	util::with_global(&REGISTRY, |r| r.write_html_to(k, w))
+	util::with_global_mut(&REGISTRY, |r| r.write_html_to(k, w))
 }

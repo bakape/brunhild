@@ -1,6 +1,5 @@
 use super::node::{DOMNode, Handle, Node};
 use super::util;
-use super::WriteHTMLTo;
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::Once;
@@ -23,7 +22,7 @@ thread_local! {
 // Overwrites the current state of the entire DOM tree.
 pub fn set_root(root: Node) -> Rc<Handle> {
 	schedule_patch();
-	util::with_global(&PENDING, |r| {
+	util::with_global_mut(&PENDING, |r| {
 		*r = root;
 		r.take_handle()
 	})
@@ -35,7 +34,7 @@ pub fn schedule_patch() {
 	// Create a JS function for the patch function
 	static CREATE_CLOSURE: Once = Once::new();
 	CREATE_CLOSURE.call_once(|| {
-		util::with_global(&PATCH_FUNCTION, |f| {
+		util::with_global_mut(&PATCH_FUNCTION, |f| {
 			*f = Some(prelude::Closure::wrap(
 				Box::new(patch) as Box<Fn() -> Result<(), JsValue>>
 			))
@@ -45,7 +44,7 @@ pub fn schedule_patch() {
 	static mut SCHEDULED: bool = false;
 	if !unsafe { SCHEDULED } {
 		unsafe { SCHEDULED = true };
-		util::with_global(&PATCH_FUNCTION, |f| {
+		util::with_global_mut(&PATCH_FUNCTION, |f| {
 			util::window()
 				.request_animation_frame(
 					f.as_ref().unwrap().as_ref().unchecked_ref(),
@@ -57,8 +56,8 @@ pub fn schedule_patch() {
 
 // Diff and patch pending changes to DOM
 fn patch() -> Result<(), JsValue> {
-	util::with_global(&DOM, |dom_root| {
-		util::with_global(&PENDING, |pending_root| {
+	util::with_global_mut(&DOM, |dom_root| {
+		util::with_global_mut(&PENDING, |pending_root| {
 			if dom_root.id == 0 {
 				// Initial root node
 				*dom_root = pending_root.into();

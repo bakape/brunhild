@@ -1,6 +1,9 @@
 use super::tokenizer;
+use super::util;
+
 use std::collections::HashMap;
 use std::fmt;
+use wasm_bindgen::JsValue;
 
 // Attribute keys that have limited set of values and thus can have their
 // values tokenized.
@@ -50,7 +53,7 @@ static TOKENIZABLE_VALUES: [&'static str; 34] = [
 pub struct Attrs(HashMap<u16, Value>);
 
 // Contains a value stored in one of 2 storage methods for attribute values
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Eq)]
 enum Value {
 	// Tokenized string value
 	StringToken(u16),
@@ -76,44 +79,110 @@ impl Attrs {
 	}
 
 	// Sets an attribute value of a Node.
-	// Setting element "id" or "class" attributes is not supported here.
+	//
+	// # Panics
+	//
+	// Setting element "id" or "class" attributes is not supported. Panics,
+	// if key in ("id", "class")
 	pub fn set(&mut self, key: &str, val: &str) {
-		self.0.insert(
-			tokenizer::tokenize(key),
-			if val == "" {
-				Value::StringToken(0)
-			} else {
-				match TOKENIZABLE_VALUES.binary_search(&key) {
-					Ok(_) => Value::StringToken(tokenizer::tokenize(val)),
-					_ => Value::Untokenized(String::from(val)),
-				}
-			},
-		);
+		match key {
+			"id" | "class" => {
+				panic!(format!(
+					"manually setting attribute not supported: {}",
+					key
+				));
+			}
+			_ => {
+				self.0.insert(
+					tokenizer::tokenize(key),
+					if val == "" {
+						Value::StringToken(0)
+					} else {
+						match TOKENIZABLE_VALUES.binary_search(&key) {
+							Ok(_) => {
+								Value::StringToken(tokenizer::tokenize(val))
+							}
+							_ => Value::Untokenized(String::from(val)),
+						}
+					},
+				);
+			}
+		}
 	}
 
-	// Remove attribute from node
-	pub fn remove(&mut self, key: &str) {
-		self.0.remove(&tokenizer::tokenize(key));
+	// Diff and patch attributes against new set and write changes to the DOM
+	pub fn patch(
+		&mut self,
+		el: &mut util::LazyElement,
+		new: &mut Attrs,
+	) -> Result<(), JsValue> {
+		// Attributes added or changed
+		for (k, v) in new.0.iter() {
+			let set = match self.0.get_mut(k) {
+				Some(old_v) => {
+					if v != old_v {
+						*old_v = v.clone();
+						true
+					} else {
+						false
+					}
+				}
+				None => {
+					self.0.insert(*k, v.clone());
+					true
+				}
+			};
+			if set {
+				match el.get() {
+					Ok(el) => tokenizer::get_value(*k, |key| match v {
+						Value::StringToken(v) => {
+							tokenizer::get_value(*v, |value| {
+								el.set_attribute(key, value)
+							})
+						}
+						Value::Untokenized(value) => {
+							el.set_attribute(key, value)
+						}
+					}),
+					Err(e) => Err(e),
+				}?;
+			}
+		}
+
+		// Attributes removed
+		let mut to_remove = Vec::<u16>::new();
+		for k in self.0.keys() {
+			if !new.0.contains_key(k) {
+				continue;
+			}
+			to_remove.push(*k);
+			match el.get() {
+				Ok(el) => {
+					tokenizer::get_value(*k, |key| el.remove_attribute(key))
+				}
+				Err(e) => Err(e),
+			}?;
+		}
+		for k in to_remove {
+			self.0.remove(&k);
+		}
+
+		Ok(())
 	}
 }
 
 impl super::WriteHTMLTo for Attrs {
 	fn write_html_to<W: fmt::Write>(&self, w: &mut W) -> fmt::Result {
 		for (k, v) in self.0.iter() {
-			w.write_char(' ')?;
-			tokenizer::write_html_to(*k, w)?;
+			tokenizer::get_value(*k, |s| write!(w, " {}", s))?;
 			match v {
 				Value::StringToken(v) => {
 					if *v != 0 {
-						w.write_char('"')?;
-						tokenizer::write_html_to(*v, w)?;
-						w.write_char('"')?;
+						tokenizer::get_value(*k, |s| write!(w, "=\"{}\"", s))?;
 					}
 				}
 				Value::Untokenized(s) => {
-					w.write_char('"')?;
-					w.write_str(&s)?;
-					w.write_char('"')?;
+					write!(w, "=\"{}\"", s)?;
 				}
 			};
 		}

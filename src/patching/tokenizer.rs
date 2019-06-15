@@ -324,9 +324,9 @@ impl ArrayString {
 	}
 }
 
-impl super::WriteHTMLTo for ArrayString {
-	fn write_html_to<W: fmt::Write>(&self, w: &mut W) -> fmt::Result {
-		w.write_str(std::str::from_utf8(&self.arr).unwrap())
+impl AsRef<str> for ArrayString {
+	fn as_ref(&self) -> &str {
+		std::str::from_utf8(&self.arr).unwrap()
 	}
 }
 
@@ -384,17 +384,17 @@ impl Registry {
 		}
 	}
 
-	// Lookup string by token and write it to w
-	fn write_html_to<W: fmt::Write>(&self, k: u16, w: &mut W) -> fmt::Result {
+	/// Lookup string by token
+	fn get_value(&self, k: u16) -> &str {
 		if k == 0 {
-			Ok(())
+			""
 		} else if k <= PREDEFINED.len() as u16 {
-			w.write_str(PREDEFINED[k as usize - 1])
+			PREDEFINED[k as usize - 1]
 		} else {
 			if util::IDGenerator::is_flagged(k) {
-				self.large.write_html_to(k, w)
+				self.large.get_value(k).as_ref()
 			} else {
-				self.small.write_html_to(k, w)
+				self.small.get_value(k).as_ref()
 			}
 		}
 	}
@@ -402,10 +402,13 @@ impl Registry {
 
 // Convert string to token
 pub fn tokenize(s: &str) -> u16 {
-	util::with_global(&REGISTRY, |r| r.tokenize(s))
+	util::with_global_mut(&REGISTRY, |r| r.tokenize(s))
 }
 
-// Lookup token and write value to w
-pub fn write_html_to<W: fmt::Write>(k: u16, w: &mut W) -> fmt::Result {
-	util::with_global(&REGISTRY, |r| r.write_html_to(k, w))
+// Lookup value by token and pass it to f
+pub fn get_value<F, R>(k: u16, f: F) -> R
+where
+	F: FnOnce(&str) -> R,
+{
+	util::with_global(&REGISTRY, |r| f(r.get_value(k)))
 }

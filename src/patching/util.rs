@@ -1,4 +1,4 @@
-use std::borrow::BorrowMut;
+use std::borrow::{BorrowMut, Borrow};
 use std::collections::HashMap;
 use std::fmt;
 use std::hash::{Hash, Hasher};
@@ -48,8 +48,19 @@ impl fmt::Write for Appender {
 	}
 }
 
-// Run function with global variable mutable access
+// Run function with global variable immutable access
 pub fn with_global<F, R, G>(
+	global: &'static std::thread::LocalKey<std::cell::RefCell<G>>,
+	func: F,
+) -> R
+where
+	F: FnOnce(&G) -> R,
+{
+	global.with(|r| func(r.borrow().borrow()))
+}
+
+// Run function with global variable mutable access
+pub fn with_global_mut<F, R, G>(
 	global: &'static std::thread::LocalKey<std::cell::RefCell<G>>,
 	func: F,
 ) -> R
@@ -61,38 +72,26 @@ where
 
 // Bidirectional lookup map for <usize,T> with no key (or value) removal
 #[derive(Default)]
-pub struct TokenMap<T: Eq + Hash + Clone + super::WriteHTMLTo> {
+pub struct TokenMap<T: Eq + Hash + Clone> {
 	forward: HashMap<u16, T>,
 	inverted: HashMap<T, u16>,
 }
 
-impl<T: Eq + Hash + Clone + super::WriteHTMLTo> TokenMap<T> {
+impl<T: Eq + Hash + Clone> TokenMap<T> {
 	// Get key token for a value, if it is in the map
 	pub fn get_token(&self, value: &T) -> Option<&u16> {
 		self.inverted.get(value)
 	}
 
-	// Get a copy of value from token, if it is in the map
-	pub fn get_value(&self, token: u16) -> Option<T> {
-		self.forward.get(&token).map(|v| v.clone())
+	// Get a reference to value from token, if it is in the map
+	pub fn get_value(&self, token: u16) -> &T {
+		self.forward.get(&token).expect("unset token lookup")
 	}
 
 	// Insert new token and value into map
 	pub fn insert(&mut self, token: u16, value: T) {
 		self.forward.insert(token, value.clone());
 		self.inverted.insert(value, token);
-	}
-
-	// Lookup value by token and write to w
-	pub fn write_html_to<W: fmt::Write>(
-		&self,
-		token: u16,
-		w: &mut W,
-	) -> fmt::Result {
-		match self.forward.get(&token) {
-			Some(v) => v.write_html_to(w),
-			None => panic!("unset token lookup: {}", token),
-		}
 	}
 }
 
@@ -109,6 +108,8 @@ impl<T: Eq + Hash + Clone + super::WriteHTMLTo> Hash for ValuePointer<T> {
 
 // Bidirectional lookup map for <usize,T> with no key (or value) removal.
 // Stores values as pointers to avoid copies.
+//
+// TODO: Test this
 #[derive(Default)]
 pub struct PointerTokenMap<T: Eq + Hash + Clone + super::WriteHTMLTo> {
 	forward: HashMap<u16, ValuePointer<T>>,
@@ -121,9 +122,12 @@ impl<T: Eq + Hash + Clone + super::WriteHTMLTo> PointerTokenMap<T> {
 		self.inverted.get(unsafe { std::mem::transmute(value) })
 	}
 
-	// Get a copy of value from token, if it is in the map
-	pub fn get_value(&self, token: u16) -> Option<T> {
-		self.forward.get(&token).map(|v| unsafe { (*v.0).clone() })
+	// Get a reference to value from token, if it is in the map
+	pub fn get_value(&self, token: u16) -> &T {
+		self.forward
+			.get(&token)
+			.map(|v| unsafe { std::mem::transmute(v) })
+			.expect("unset token lookup")
 	}
 
 	// Insert new token and value into map
@@ -131,18 +135,6 @@ impl<T: Eq + Hash + Clone + super::WriteHTMLTo> PointerTokenMap<T> {
 		let ptr = Box::into_raw(Box::new(value)) as *const T;
 		self.inverted.insert(ValuePointer(ptr), token);
 		self.forward.insert(token, ValuePointer(ptr));
-	}
-
-	// Lookup value by token and write to w
-	pub fn write_html_to<W: fmt::Write>(
-		&self,
-		token: u16,
-		w: &mut W,
-	) -> fmt::Result {
-		match self.forward.get(&token) {
-			Some(v) => unsafe { (*v.0).write_html_to(w) },
-			None => panic!("unset token lookup: {}", token),
-		}
 	}
 }
 
