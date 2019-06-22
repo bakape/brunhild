@@ -308,6 +308,7 @@ impl Node {
 	fn merge_children(old: &mut Vec<Node>, mut new: Vec<Node>) {
 		let mut old_it = old.iter_mut().peekable();
 		let mut new_it = new.into_iter().peekable();
+		let mut i = 0;
 		let mut nodes_mismatched = false;
 
 		// First merge all matching children. Most of the time child lists will
@@ -320,42 +321,33 @@ impl Node {
 				nodes_mismatched = true;
 				break;
 			}
+			i += 1;
 			if old_ch.is_immutable() {
 				continue;
 			}
 			Node::merge_node(old_ch, new_ch);
 		}
 
+		// Handle mismatched node counts using appends or deletes
+		macro_rules! sync_children {
+			($old_it:ident, $new_it:ident) => {
+				if $new_it.peek().is_some() {
+					// Append new nodes to end
+					old.extend($new_it);
+				} else if $old_it.peek().is_some() {
+					// Remove nodes from end
+					let left = $old_it.count();
+					old.truncate(old.len() - left);
+					}
+			};
+		}
+
 		if nodes_mismatched {
 			// Match the rest of the nodes by key, if any
-			let i = old_it.count();
 			new = new_it.collect();
 
 			// Check we actually have any keys
-			let have_keys = old
-				.iter()
-				.skip(i)
-				.chain(new.iter())
-				.any(|ch| ch.key.is_some());
-
-			if !have_keys {
-				// Destructively swap in nodes
-				let mut old_it = old.iter_mut().skip(i).peekable();
-				new_it = new.into_iter().peekable();
-				while old_it.peek().is_some() && new_it.peek().is_some() {
-					*old_it.next().unwrap() = new_it.next().unwrap();
-				}
-
-				// Handle mismatched node counts using appends or deletes
-				if new_it.peek().is_some() {
-					// Append new nodes to end
-					old.extend(new_it);
-				} else if old_it.peek().is_some() {
-					// Remove nodes from end
-					let left = old_it.count();
-					old.truncate(old.len() - left);
-				}
-			} else {
+			if has_keys(old.iter().skip(i).chain(new.iter())) {
 				// Perform matching by key and destructively swap in the rest
 				let mut old_by_key: HashMap<u64, Node> = old
 					.split_off(i)
@@ -381,17 +373,18 @@ impl Node {
 						}
 					}
 				}
+			} else {
+				// Destructively swap in nodes
+				let mut old_it = old.iter_mut().skip(i).peekable();
+				new_it = new.into_iter().peekable();
+				while old_it.peek().is_some() && new_it.peek().is_some() {
+					*old_it.next().unwrap() = new_it.next().unwrap();
+				}
+
+				sync_children!(old_it, new_it);
 			}
 		} else {
-			// Handle mismatched node counts using appends or deletes
-			if new_it.peek().is_some() {
-				// Append new nodes to end
-				old.extend(new_it);
-			} else if old_it.peek().is_some() {
-				// Remove nodes from end
-				let left = old_it.count();
-				old.truncate(old.len() - left);
-			}
+			sync_children!(old_it, new_it);
 		}
 	}
 
@@ -435,6 +428,32 @@ pub struct DOMNode {
 	element: util::LazyElement,
 
 	contents: DOMNodeContents,
+}
+
+trait DescribeNode {
+	// Return identification key assigned, if any
+	fn key(&self) -> Option<u64>;
+}
+
+impl DescribeNode for &Node {
+	fn key(&self) -> Option<u64> {
+		return self.key;
+	}
+}
+
+impl DescribeNode for &DOMNode {
+	fn key(&self) -> Option<u64> {
+		return self.key;
+	}
+}
+
+// Return, if any item in iterator has a set key
+fn has_keys<I, N>(mut it: I) -> bool
+where
+	I: Iterator<Item = N>,
+	N: DescribeNode,
+{
+	it.any(|ch| ch.key().is_some())
 }
 
 impl DOMNode {
@@ -563,38 +582,64 @@ impl DOMNode {
 			old_ch.patch(new_ch)?;
 		}
 
+		// Handle mismatched node counts using appends or deletes
+		macro_rules! sync_children {
+			($old_it:ident, $new_it:ident) => {
+				if $new_it.peek().is_some() {
+					// Append new nodes to end
+
+					let mut w = util::Appender::new();
+					old.reserve($new_it.size_hint().0);
+					for new_ch in $new_it {
+						let dom_ch: DOMNode = new_ch.into();
+						dom_ch
+							.write_html_to(&mut w)
+							.map_err(util::cast_error)?;
+						old.push(dom_ch);
+						}
+
+					let template =
+						util::document().create_element("template")?;
+					template.set_inner_html(&w.dump());
+					parent.get()?.append_child(
+						&template
+							.unchecked_into::<web_sys::HtmlTemplateElement>()
+							.content() as &web_sys::Node,
+					)?;
+				} else if $old_it.peek().is_some() {
+					// Remove nodes from end
+
+					for old_ch in $old_it {
+						old_ch.element.get()?.remove();
+						}
+					old.truncate(i);
+					}
+			};
+		}
+
 		if nodes_mismatched {
 			// Match the rest of the nodes by key, if any
 
-			unimplemented!()
-		} else {
-			// Handle mismatched node counts using appends, prepends or deletes
-			if new_it.peek().is_some() {
-				// Append new nodes to end
+			// Check we actually have any keys
+			if has_keys(old.iter().skip(i)) || has_keys(new.iter().skip(i)) {
+				// TODO: Perform matching by key and destructively swap in the rest
 
-				let mut w = util::Appender::new();
-				old.reserve(new_it.size_hint().0);
-				for new_ch in new_it {
-					let dom_ch: DOMNode = new_ch.into();
-					dom_ch.write_html_to(&mut w).map_err(util::cast_error)?;
-					old.push(dom_ch);
+				unimplemented!()
+			} else {
+				// Destructively swap in nodes
+				let mut old_it = old.iter_mut().skip(i).peekable();
+				let mut new_it = new.iter_mut().skip(i).peekable();
+				while old_it.peek().is_some() && new_it.peek().is_some() {
+					old_it
+						.next()
+						.unwrap()
+						.replace_node(new_it.next().unwrap())?;
 				}
 
-				let template = util::document().create_element("template")?;
-				template.set_inner_html(&w.dump());
-				parent.get()?.append_child(
-					&template
-						.unchecked_into::<web_sys::HtmlTemplateElement>()
-						.content() as &web_sys::Node,
-				)?;
-			} else if old_it.peek().is_some() {
-				// Remove nodes from end
-
-				for old_ch in old_it {
-					old_ch.element.get()?.remove();
-				}
-				old.truncate(i);
+				sync_children!(old_it, new_it);
 			}
+		} else {
+			sync_children!(old_it, new_it);
 		}
 
 		Ok(())
