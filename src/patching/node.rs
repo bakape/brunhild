@@ -7,7 +7,7 @@ use super::WriteHTMLTo;
 use std::collections::HashMap;
 use std::fmt;
 use std::rc::Rc;
-use wasm_bindgen::{JsCast, JsValue};
+use wasm_bindgen::JsValue;
 
 const IMMUTABLE: u8 = 1; // Node contents never change
 const DIRTY: u8 = 1 << 1; // Node contents not synced to DOM yet
@@ -344,6 +344,7 @@ impl Node {
 
 		if nodes_mismatched {
 			// Match the rest of the nodes by key, if any
+
 			new = new_it.collect();
 
 			// Check we actually have any keys
@@ -375,6 +376,7 @@ impl Node {
 				}
 			} else {
 				// Destructively swap in nodes
+
 				let mut old_it = old.iter_mut().skip(i).peekable();
 				new_it = new.into_iter().peekable();
 				while old_it.peek().is_some() && new_it.peek().is_some() {
@@ -598,14 +600,9 @@ impl DOMNode {
 						old.push(dom_ch);
 						}
 
-					let template =
-						util::document().create_element("template")?;
-					template.set_inner_html(&w.dump());
-					parent.get()?.append_child(
-						&template
-							.unchecked_into::<web_sys::HtmlTemplateElement>()
-							.content() as &web_sys::Node,
-					)?;
+					parent
+						.get()?
+						.insert_adjacent_html("beforeend", &w.dump())?;
 				} else if $old_it.peek().is_some() {
 					// Remove nodes from end
 
@@ -622,11 +619,11 @@ impl DOMNode {
 
 			// Check we actually have any keys
 			if has_keys(old.iter().skip(i)) || has_keys(new.iter().skip(i)) {
-				// TODO: Perform matching by key and destructively swap in the rest
-
-				unimplemented!()
+				// Perform matching by key and destructively swap in the rest
+				DOMNode::patch_children_by_key(parent, old, new, i)?;
 			} else {
 				// Destructively swap in nodes
+
 				let mut old_it = old.iter_mut().skip(i).peekable();
 				let mut new_it = new.iter_mut().skip(i).peekable();
 				while old_it.peek().is_some() && new_it.peek().is_some() {
@@ -640,6 +637,107 @@ impl DOMNode {
 			}
 		} else {
 			sync_children!(old_it, new_it);
+		}
+
+		Ok(())
+	}
+
+	// Match and patch nodes by key, if any
+	fn patch_children_by_key(
+		parent: &mut util::LazyElement,
+		old: &mut Vec<DOMNode>,
+		new: &mut Vec<Node>,
+		mut i: usize,
+	) -> Result<(), JsValue> {
+		// Map old children by key
+		let mut old_by_key = HashMap::<u64, DOMNode>::new();
+		let mut to_remove = Vec::<DOMNode>::new();
+		for ch in old.split_off(i) {
+			match ch.key {
+				Some(k) => {
+					old_by_key.insert(k, ch);
+				}
+				None => {
+					to_remove.push(ch);
+				}
+			}
+		}
+
+		// Insert new HTML into the DOM efficiently in buffered chunks
+		let new_it = new.iter_mut().skip(i);
+		old.reserve(new_it.size_hint().0);
+		let mut w = util::Appender::new();
+		let mut buffered = 0;
+
+		let flush = |w: &mut util::Appender,
+		             i: &mut usize,
+		             buffered: &mut usize,
+		             old: &mut Vec<DOMNode>,
+		             parent: &mut util::LazyElement|
+		 -> Result<(), JsValue> {
+			if *buffered == 0 {
+				return Ok(());
+			}
+
+			let html = w.dump();
+			w.clear();
+			if *i == 0 {
+				parent.get()?.insert_adjacent_html("afterbegin", &html)?;
+			} else {
+				old[*i]
+					.element
+					.get()?
+					.insert_adjacent_html("afterend", &html)?;
+			}
+			*i += *buffered;
+			*buffered = 0;
+
+			Ok(())
+		};
+
+		for new_ch in new_it {
+			let buffer = match new_ch.key {
+				Some(k) => match old_by_key.remove(&k) {
+					Some(mut old_ch) => {
+						flush(&mut w, &mut i, &mut buffered, old, parent)?;
+
+						let el = old_ch.element.get()?;
+						if i == 0 {
+							parent
+								.get()?
+								.insert_adjacent_element("afterbegin", &el)?;
+						} else {
+							old[i]
+								.element
+								.get()?
+								.insert_adjacent_element("afterend", &el)?;
+						}
+						old_ch.patch(new_ch)?;
+
+						old.push(old_ch);
+						i += 1;
+						false
+					}
+					None => true,
+				},
+				None => true,
+			};
+			if buffer {
+				let dom_node: DOMNode = new_ch.into();
+				dom_node.write_html_to(&mut w).map_err(util::cast_error)?;
+
+				old.push(dom_node);
+				buffered += 1;
+			}
+		}
+		flush(&mut w, &mut i, &mut buffered, old, parent)?;
+
+		// Remove any unmatched old children
+		for mut ch in to_remove
+			.into_iter()
+			.chain(old_by_key.into_iter().map(|(_, v)| v))
+		{
+			ch.element.get()?.remove();
 		}
 
 		Ok(())

@@ -2,31 +2,48 @@ use super::node::DOMNode;
 use std::borrow::{Borrow, BorrowMut};
 use std::collections::HashMap;
 use std::convert::TryFrom;
-use std::fmt::Display;
-use std::fmt;
-use std::hash::{Hash, Hasher};
 
+use std::fmt;
+use std::fmt::Display;
+use std::hash::{Hash, Hasher};
 use wasm_bindgen::JsValue;
 use web_sys;
 
 // Efficient append-only string builder for reducing reallocations
 pub struct Appender {
+	i: usize,
 	buffers: Vec<String>,
 }
 
 impl Appender {
 	pub fn new() -> Self {
 		return Appender {
+			i: 0,
 			buffers: vec![String::with_capacity(64)],
 		};
 	}
 
+	fn current(&mut self) -> &mut String {
+		&mut self.buffers[self.i]
+	}
+
 	fn assert_cap(&mut self, append_size: usize) {
-		let buf = self.buffers.last().unwrap();
+		let buf = self.current();
 		let cap = buf.capacity();
-		let len = buf.len();
-		if len + append_size > cap {
-			self.buffers.push(String::with_capacity(cap * 2));
+		if buf.len() + append_size > cap {
+			if self.i == self.buffers.len() - 1 {
+				self.buffers.push(String::with_capacity(cap * 2));
+			} else {
+				self.i += 1;
+			}
+		}
+	}
+
+	// Clear all contents, but keep allocated memory for reuse
+	pub fn clear(&mut self) {
+		self.i = 0;
+		for b in self.buffers.iter_mut() {
+			b.clear()
 		}
 	}
 
@@ -34,21 +51,17 @@ impl Appender {
 	pub fn dump(&mut self) -> String {
 		self.buffers.concat()
 	}
-
-	fn last_mut(&mut self) -> &mut String {
-		self.buffers.last_mut().unwrap()
-	}
 }
 
 impl fmt::Write for Appender {
 	fn write_str(&mut self, s: &str) -> fmt::Result {
 		self.assert_cap(s.len());
-		self.last_mut().write_str(s)
+		self.current().write_str(s)
 	}
 
 	fn write_char(&mut self, c: char) -> fmt::Result {
 		self.assert_cap(1);
-		self.last_mut().write_char(c)
+		self.current().write_char(c)
 	}
 }
 
