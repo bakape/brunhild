@@ -18,6 +18,9 @@ thread_local! {
 	> = RefCell::new(None);
 }
 
+// A patch is scheduled for the next animation frame
+static mut SCHEDULED: bool = false;
+
 // Set the root Node to be attached directly under <body>.
 // Overwrites the current state of the entire DOM tree.
 pub fn set_root(root: Node) -> Rc<Handle> {
@@ -41,7 +44,6 @@ pub fn schedule_patch() {
 		});
 	});
 
-	static mut SCHEDULED: bool = false;
 	if !unsafe { SCHEDULED } {
 		unsafe { SCHEDULED = true };
 		util::with_global_mut(&PATCH_FUNCTION, |f| {
@@ -56,6 +58,7 @@ pub fn schedule_patch() {
 
 // Diff and patch pending changes to DOM
 fn patch() -> Result<(), JsValue> {
+	unsafe { SCHEDULED = false };
 	util::with_global_mut(&DOM, |dom_root| {
 		util::with_global_mut(&PENDING, |pending_root| {
 			if dom_root.id == 0 {
