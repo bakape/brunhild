@@ -10,7 +10,7 @@ Sourced from:
 https://developer.mozilla.org/en-US/docs/Web/HTML/Element
 https://developer.mozilla.org/en-US/docs/Web/HTML/Attributes
 
-NOTE: Some functions harcode indexes into this. Do not change lightly.
+NOTE: Some functions hard-code indexes into this. Do not change lightly.
 constexpr when?
 */
 static PREDEFINED: [&'static str; 285] = [
@@ -360,7 +360,7 @@ impl Registry {
 		}
 		match s.len() {
 			0 => 0, // Don't store empty strings
-			1...15 => {
+			1..=15 => {
 				let v = ArrayString::new(s);
 				match self.small.get_token(&v) {
 					Some(t) => *t,

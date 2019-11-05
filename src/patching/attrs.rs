@@ -1,7 +1,7 @@
 use super::tokenizer;
 use super::util;
 
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::fmt;
 use wasm_bindgen::JsValue;
 
@@ -11,13 +11,14 @@ use wasm_bindgen::JsValue;
 //
 // Sourced from:
 // https://developer.mozilla.org/en-US/docs/Web/HTML/Attributes
-static TOKENIZABLE_VALUES: [&'static str; 34] = [
+static TOKENIZABLE_VALUES: [&'static str; 35] = [
 	"async",
 	"autocapitalize",
 	"autocomplete",
 	"autofocus",
 	"autoplay",
 	"checked",
+	"class",
 	"contenteditable",
 	"controls",
 	"crossorigin",
@@ -50,7 +51,7 @@ static TOKENIZABLE_VALUES: [&'static str; 34] = [
 
 // Compressed attribute storage with manipulation functions
 #[derive(Default, Clone)]
-pub struct Attrs(HashMap<u16, Value>);
+pub struct Attrs(BTreeMap<u16, Value>);
 
 // Contains a value stored in one of 2 storage methods for attribute values
 #[derive(Clone, PartialEq, Eq)]
@@ -65,46 +66,27 @@ enum Value {
 
 impl Attrs {
 	// Create empty attribute map
+	// TODO: Make generic with Into
 	pub fn new(arr: &[&(&str, &str)]) -> Self {
-		let mut s = Self::with_capacity(arr.len());
-		for (k, v) in arr.iter() {
-			s.set(k, v);
-		}
-		return s;
-	}
-
-	// Create empty attribute map with set capacity
-	pub fn with_capacity(capacity: usize) -> Self {
-		Self(HashMap::with_capacity(capacity))
-	}
-
-	// Sets an attribute value of a Node.
-	//
-	// # Panics
-	//
-	// Setting element "id" or "class" attributes is not supported. Panics,
-	// if key in ("id", "class")
-	pub fn set(&mut self, key: &str, val: &str) {
-		match key {
-			"id" | "class" => {
-				panic!("manually setting attribute not supported: {}", key);
-			}
-			_ => {
-				self.0.insert(
-					tokenizer::tokenize(key),
-					if val == "" {
-						Value::StringToken(0)
-					} else {
-						match TOKENIZABLE_VALUES.binary_search(&key) {
-							Ok(_) => {
-								Value::StringToken(tokenizer::tokenize(val))
+		Self(
+			arr.iter()
+				.map(|(key, val)| {
+					(
+						tokenizer::tokenize(key),
+						if *val == "" {
+							Value::StringToken(0)
+						} else {
+							match TOKENIZABLE_VALUES.binary_search(&key) {
+								Ok(_) => {
+									Value::StringToken(tokenizer::tokenize(val))
+								}
+								_ => Value::Untokenized(String::from(*val)),
 							}
-							_ => Value::Untokenized(String::from(val)),
-						}
-					},
-				);
-			}
-		}
+						},
+					)
+				})
+				.collect(),
+		)
 	}
 
 	// Diff and patch attributes against new set and write changes to the DOM

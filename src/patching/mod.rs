@@ -1,7 +1,6 @@
 use std::fmt;
 
 mod attrs;
-mod classes;
 mod node;
 mod patching;
 mod tokenizer;

@@ -14,7 +14,7 @@ thread_local! {
 
 	// JS function closure for patching function
 	static PATCH_FUNCTION: RefCell<
-		Option<prelude::Closure<Fn() -> Result<(), JsValue>>>,
+		Option<prelude::Closure<dyn Fn() -> Result<(), JsValue>>>,
 	> = RefCell::new(None);
 }
 
@@ -39,7 +39,7 @@ pub fn schedule_patch() {
 	CREATE_CLOSURE.call_once(|| {
 		util::with_global_mut(&PATCH_FUNCTION, |f| {
 			*f = Some(prelude::Closure::wrap(
-				Box::new(patch) as Box<Fn() -> Result<(), JsValue>>
+				Box::new(patch) as Box<dyn Fn() -> Result<(), JsValue>>
 			))
 		});
 	});

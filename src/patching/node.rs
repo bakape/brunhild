@@ -1,5 +1,4 @@
 use super::attrs::Attrs;
-use super::classes;
 use super::patching;
 use super::tokenizer;
 use super::util;
@@ -31,9 +30,6 @@ struct ElementContentsCommon {
 	// Token for the node's tag
 	tag: u16,
 
-	// Token for compressed set of classes for this node
-	class_set: u16,
-
 	// Node attributes, excluding "id" and "class".
 	// "id" is used internally for node addressing and can not be set.
 	// to set "class" used the dedicated methods.
@@ -44,7 +40,6 @@ impl Default for ElementContentsCommon {
 	fn default() -> Self {
 		Self {
 			tag: tokenizer::tokenize("div"),
-			class_set: 0,
 			attrs: Default::default(),
 		}
 	}
@@ -111,7 +106,7 @@ impl Default for Node {
 // Options for constructing an Element Node. This struct has separate lifetimes
 // for each field, so that some of these can have static lifetimes and thus not
 // require runtime allocation.
-pub struct ElementOptions<'t, 'c, 'a> {
+pub struct ElementOptions<'t, 'a> {
 	// Mark node and its entire subtree as immutable. Such a node will never be
 	// merged or patched and thus can improve performance.
 	pub immutable: bool,
@@ -124,20 +119,16 @@ pub struct ElementOptions<'t, 'c, 'a> {
 	// user input focus or selections.
 	pub key: Option<u64>,
 
-	// Set of classes for the element "class" attribute
-	pub classes: &'c [&'c str],
-
 	// List of element attributes
 	pub attributes: &'a [&'a (&'a str, &'a str)],
 }
 
-impl<'t, 'c, 'a> Default for ElementOptions<'t, 'c, 'a> {
+impl<'t, 'a> Default for ElementOptions<'t, 'a> {
 	fn default() -> Self {
 		Self {
 			immutable: false,
 			tag: "div",
 			key: None,
-			classes: &[],
 			attributes: &[],
 		}
 	}
@@ -184,7 +175,6 @@ impl Node {
 			contents: NodeContents::Element(ElementContents {
 				common: ElementContentsCommon {
 					tag: tokenizer::tokenize(opts.tag),
-					class_set: super::classes::tokenize(opts.classes),
 					attrs: super::attrs::Attrs::new(opts.attributes),
 				},
 				..Default::default()
@@ -203,7 +193,6 @@ impl Node {
 			contents: NodeContents::Element(ElementContents {
 				common: ElementContentsCommon {
 					tag: tokenizer::tokenize(opts.tag),
-					class_set: super::classes::tokenize(opts.classes),
 					attrs: super::attrs::Attrs::new(opts.attributes),
 				},
 				children: children,
@@ -295,7 +284,6 @@ impl Node {
 			NodeContents::Element(ref mut cont) => match new.contents {
 				NodeContents::Element(new_cont) => {
 					cont.common.attrs = new_cont.common.attrs;
-					cont.common.class_set = new_cont.common.class_set;
 					Node::merge_children(&mut cont.children, new_cont.children);
 				}
 				_ => (),
@@ -531,19 +519,6 @@ impl DOMNode {
 						.common
 						.attrs
 						.patch(&mut self.element, &mut new_cont.common.attrs)?;
-
-					// Patch classes
-					if old_cont.common.class_set != new_cont.common.class_set {
-						let mut w = String::with_capacity(32);
-						classes::write_html_to(
-							new_cont.common.class_set,
-							&mut w,
-						)
-						.map_err(util::cast_error)?;
-						self.element.get()?.set_attribute("class", &w)?;
-
-						old_cont.common.class_set = new_cont.common.class_set;
-					}
 
 					DOMNode::patch_children(
 						&mut self.element,
@@ -816,11 +791,6 @@ impl super::WriteHTMLTo for DOMNode {
 				tokenizer::get_value(cont.common.tag, |tag| {
 					write!(w, "<{} id=\"bh-{}\"", tag, self.id)
 				})?;
-				if cont.common.class_set != 0 {
-					w.write_str(" class=")?;
-					classes::write_html_to(cont.common.class_set, w)?;
-					w.write_char('"')?;
-				}
 				cont.common.attrs.write_html_to(w)?;
 				w.write_char('>')?;
 
