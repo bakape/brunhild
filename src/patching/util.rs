@@ -1,7 +1,5 @@
-use super::node::DOMNode;
 use std::borrow::{Borrow, BorrowMut};
 use std::collections::HashMap;
-use std::convert::TryFrom;
 
 use std::fmt;
 use std::fmt::Display;
@@ -62,6 +60,33 @@ impl fmt::Write for Appender {
 	fn write_char(&mut self, c: char) -> fmt::Result {
 		self.assert_cap(1);
 		self.current().write_char(c)
+	}
+}
+
+// Lazily retrieves an element by its ID
+#[derive(Default)]
+pub struct LazyElement {
+	pub id: u64,
+	element: Option<web_sys::Element>,
+}
+
+impl LazyElement {
+	// Retrieve JS element reference or cached value
+	pub fn get(&mut self) -> Result<web_sys::Element, JsValue> {
+		match &mut self.element {
+			Some(el) => Ok(el.clone()),
+			None => {
+				match document().get_element_by_id(&format!("bh-{}", self.id)) {
+					Some(el) => {
+						self.element = Some(el.clone());
+						Ok(el)
+					}
+					None => {
+						Err(format!("element not found: bh-{}", self.id).into())
+					}
+				}
+			}
+		}
 	}
 }
 
@@ -219,54 +244,6 @@ pub fn window() -> web_sys::Window {
 // Get page document
 pub fn document() -> web_sys::Document {
 	window().document().expect("no document on window")
-}
-
-// Lazily retrieves an element by its ID
-#[derive(Default)]
-pub struct LazyElement {
-	id: u64,
-	element: Option<web_sys::Element>,
-}
-
-impl LazyElement {
-	pub fn new(id: u64) -> Self {
-		Self {
-			id: id,
-			element: None,
-		}
-	}
-
-	// Retrieve JS element reference or cached value
-	pub fn get(&mut self) -> Result<web_sys::Element, JsValue> {
-		match &mut self.element {
-			Some(el) => Ok(el.clone()),
-			None => {
-				match document().get_element_by_id(&format!("bh-{}", self.id)) {
-					Some(el) => {
-						self.element = Some(el.clone());
-						Ok(el)
-					}
-					None => {
-						Err(format!("element not found: bh-{}", self.id).into())
-					}
-				}
-			}
-		}
-	}
-}
-
-impl TryFrom<&DOMNode> for LazyElement {
-	type Error = JsValue;
-
-	// Create a fresh element not inserted into the DOM from DOMNode HTML
-	fn try_from(node: &DOMNode) -> Result<Self, JsValue> {
-		let el = document().create_element("div")?;
-		el.set_outer_html(&node.html()?);
-		Ok(Self {
-			id: node.id,
-			element: Some(el),
-		})
-	}
 }
 
 // Cast Rust error to JSValue to be thrown as exception

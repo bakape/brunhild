@@ -332,7 +332,7 @@ impl AsRef<str> for ArrayString {
 }
 
 impl super::WriteHTMLTo for String {
-	fn write_html_to<W: fmt::Write>(&self, w: &mut W) -> fmt::Result {
+	fn write_html_to<W: fmt::Write>(&mut self, w: &mut W) -> fmt::Result {
 		w.write_str(&self)
 	}
 }
@@ -355,9 +355,6 @@ impl Registry {
 
 	// Convert string to token
 	fn tokenize(&mut self, s: &str) -> u16 {
-		if let Ok(i) = PREDEFINED.binary_search(&s) {
-			return i as u16 + 1;
-		}
 		match s.len() {
 			0 => 0, // Don't store empty strings
 			1..=15 => {
@@ -400,7 +397,11 @@ impl Registry {
 }
 
 // Convert string to token
+#[inline]
 pub fn tokenize(s: &str) -> u16 {
+	if let Ok(i) = PREDEFINED.binary_search(&s) {
+		return i as u16 + 1;
+	}
 	util::with_global_mut(&REGISTRY, |r| r.tokenize(s))
 }
 

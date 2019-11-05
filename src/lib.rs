@@ -1,4 +1,4 @@
 mod patching;
 mod utils;
 
-pub use patching::{set_root, ElementOptions, Handle, Node, TextOptions};
+pub use patching::{ElementOptions, Node, TextOptions};
