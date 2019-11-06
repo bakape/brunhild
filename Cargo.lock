@@ -22,7 +22,7 @@ dependencies = [
 
 [[package]]
 name = "brunhild"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "console_error_panic_hook 0.1.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "js-sys 0.3.30 (registry+https://github.com/rust-lang/crates.io-index)",

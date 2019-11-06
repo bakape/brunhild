@@ -1,6 +1,6 @@
 [package]
 name = "brunhild"
-version = "0.4.0"
+version = "0.4.1"
 authors = ["bakape <bakape@gmail.com>"]
 edition = "2018"
 description  = "experimental compressive Rust virtual DOM library"
@@ -23,8 +23,6 @@ features = [
   'HtmlElement',
   'Element',
   'Node',
-  'DocumentFragment',
-  'HtmlTemplateElement',
 ]
 
 [dev-dependencies]
