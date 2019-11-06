@@ -3,7 +3,7 @@ use std::collections::HashMap;
 
 use std::fmt;
 use std::fmt::Display;
-use std::hash::{Hash, Hasher};
+use std::hash::Hash;
 use wasm_bindgen::JsValue;
 use web_sys;
 
@@ -134,49 +134,6 @@ impl<T: Eq + Hash + Clone> TokenMap<T> {
 	pub fn insert(&mut self, token: u16, value: T) {
 		self.forward.insert(token, value.clone());
 		self.inverted.insert(value, token);
-	}
-}
-
-// Overrides hashing method.
-// The default hashing method for *const is conversion to usize.
-#[derive(PartialEq, Eq)]
-struct ValuePointer<T: Eq + Hash + Clone + super::WriteHTMLTo>(*const T);
-
-impl<T: Eq + Hash + Clone + super::WriteHTMLTo> Hash for ValuePointer<T> {
-	fn hash<H: Hasher>(&self, state: &mut H) {
-		unsafe { (*self.0).hash(state) };
-	}
-}
-
-// Bidirectional lookup map for <usize,T> with no key (or value) removal.
-// Stores values as pointers to avoid copies.
-//
-// TODO: Test this
-#[derive(Default)]
-pub struct PointerTokenMap<T: Eq + Hash + Clone + super::WriteHTMLTo> {
-	forward: HashMap<u16, ValuePointer<T>>,
-	inverted: HashMap<ValuePointer<T>, u16>,
-}
-
-impl<T: Eq + Hash + Clone + super::WriteHTMLTo> PointerTokenMap<T> {
-	// Get key token for a value, if it is in the map
-	pub fn get_token(&self, value: &T) -> Option<&u16> {
-		self.inverted.get(unsafe { std::mem::transmute(value) })
-	}
-
-	// Get a reference to value from token, if it is in the map
-	pub fn get_value(&self, token: u16) -> &T {
-		self.forward
-			.get(&token)
-			.map(|v| unsafe { std::mem::transmute(v) })
-			.expect("unset token lookup")
-	}
-
-	// Insert new token and value into map
-	pub fn insert(&mut self, token: u16, value: T) {
-		let ptr = Box::into_raw(Box::new(value)) as *const T;
-		self.inverted.insert(ValuePointer(ptr), token);
-		self.forward.insert(token, ValuePointer(ptr));
 	}
 }
 

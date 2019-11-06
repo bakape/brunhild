@@ -342,7 +342,7 @@ impl super::WriteHTMLTo for String {
 struct Registry {
 	id_gen: util::IDGenerator,
 	small: util::TokenMap<ArrayString>,
-	large: util::PointerTokenMap<String>,
+	large: util::TokenMap<String>,
 }
 
 impl Registry {
