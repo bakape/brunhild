@@ -158,14 +158,53 @@ impl Node {
 		}
 	}
 
-	// TODO: Mount functions
+	// Mount Node after as last child of parent
+	pub fn append_to(
+		&mut self,
+		parent: web_sys::Element,
+	) -> Result<(), JsValue> {
+		self.mount(parent, "beforeend")
+	}
+
+	// Mount Node after as first child of parent
+	pub fn prepend_to(
+		&mut self,
+		parent: web_sys::Element,
+	) -> Result<(), JsValue> {
+		self.mount(parent, "afterbegin")
+	}
+
+	// Mount Node after as previous sibling of parent
+	pub fn mount_before(
+		&mut self,
+		parent: web_sys::Element,
+	) -> Result<(), JsValue> {
+		self.mount(parent, "beforebegin")
+	}
+
+	// Mount Node after as next sibling of parent
+	pub fn mount_after(
+		&mut self,
+		parent: web_sys::Element,
+	) -> Result<(), JsValue> {
+		self.mount(parent, "afterend")
+	}
+
+	fn mount(
+		&mut self,
+		parent: web_sys::Element,
+		mode: &str,
+	) -> Result<(), JsValue> {
+		parent.insert_adjacent_html(mode, &self.html()?)
+	}
 
 	// Return the DOM element ID of node
 	pub fn element_id(&self) -> String {
 		format!("bh-{}", self.id)
 	}
 
-	// Patch possibly changed subtree into self and apply changes to the DOM
+	// Patch possibly changed subtree into self and apply changes to the DOM.
+	// Node must be already mounted.
 	pub fn patch(&mut self, new: Node) -> Result<(), JsValue> {
 		if self.id == 0 {
 			return Err("node not mounted yet".into());
