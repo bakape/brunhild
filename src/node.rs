@@ -1,7 +1,7 @@
 use super::attrs::Attrs;
 use super::tokenizer;
 use super::util;
-use super::WriteHTMLTo;
+use super::util::WriteHTMLTo;
 use std::collections::HashMap;
 use std::fmt;
 use wasm_bindgen::JsValue;
@@ -392,7 +392,7 @@ impl Node {
 	}
 }
 
-impl super::WriteHTMLTo for Node {
+impl util::WriteHTMLTo for Node {
 	fn write_html_to<W: fmt::Write>(&mut self, w: &mut W) -> fmt::Result {
 		self.ensure_id();
 

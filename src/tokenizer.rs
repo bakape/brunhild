@@ -331,7 +331,7 @@ impl AsRef<str> for ArrayString {
 	}
 }
 
-impl super::WriteHTMLTo for String {
+impl util::WriteHTMLTo for String {
 	fn write_html_to<W: fmt::Write>(&mut self, w: &mut W) -> fmt::Result {
 		w.write_str(&self)
 	}

@@ -150,7 +150,7 @@ impl Attrs {
 	}
 }
 
-impl super::WriteHTMLTo for Attrs {
+impl util::WriteHTMLTo for Attrs {
 	fn write_html_to<W: fmt::Write>(&mut self, w: &mut W) -> fmt::Result {
 		for (k, v) in self.0.iter() {
 			tokenizer::get_value(*k, |s| write!(w, " {}", s))?;

@@ -207,3 +207,8 @@ pub fn document() -> web_sys::Document {
 pub fn cast_error<T: Display>(e: T) -> JsValue {
 	JsValue::from(format!("{}", e))
 }
+
+// Able to write itself as HTML to w
+pub trait WriteHTMLTo {
+	fn write_html_to<W: fmt::Write>(&mut self, w: &mut W) -> fmt::Result;
+}

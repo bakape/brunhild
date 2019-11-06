@@ -1,4 +1,6 @@
-mod patching;
-mod utils;
+mod attrs;
+mod node;
+mod tokenizer;
+mod util;
 
-pub use patching::{ElementOptions, Node, TextOptions};
+pub use node::{ElementOptions, Node, TextOptions};
