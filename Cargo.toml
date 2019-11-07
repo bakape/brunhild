@@ -1,6 +1,6 @@
 [package]
 name = "brunhild"
-version = "0.4.2"
+version = "0.4.3"
 authors = ["bakape <bakape@gmail.com>"]
 edition = "2018"
 description  = "experimental compressive Rust virtual DOM library"
@@ -26,9 +26,6 @@ features = [
 
 [dev-dependencies]
 wasm-bindgen-test = "0.3.4"
-
-[target."cfg(debug_assertions)".dependencies]
-console_error_panic_hook = "0.1.5"
 
 [profile.release]
 opt-level = 3
