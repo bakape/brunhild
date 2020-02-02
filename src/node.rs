@@ -87,6 +87,30 @@ impl<'t, 'a> Default for ElementOptions<'t, 'a> {
 	}
 }
 
+impl<'t, 'a> ElementOptions<'t, 'a> {
+	// Shorthand for constructing new element with nothing but a tag
+	#[inline]
+	pub fn new(tag: &'t str) -> ElementOptions<'t, 'a> {
+		ElementOptions {
+			tag: tag,
+			..Default::default()
+		}
+	}
+
+	// Shorthand for constructing new element with attributes
+	#[inline]
+	pub fn with_attrs(
+		tag: &'t str,
+		attrs: &'a [&'a (&'a str, &'a str)],
+	) -> ElementOptions<'t, 'a> {
+		ElementOptions {
+			tag: tag,
+			attrs: attrs,
+			..Default::default()
+		}
+	}
+}
+
 // Options for constructing a text Node
 pub struct TextOptions<'a> {
 	// HTML-escape inner text
@@ -497,11 +521,10 @@ fn create_element_node() {
 fn create_element_node_with_children() {
 	#[allow(unused)]
 	let node = Node::with_children(
-		&ElementOptions {
-			tag: "span",
-			attrs: &[&("disabled", ""), &("width", "64")],
-			..Default::default()
-		},
+		&ElementOptions::with_attrs(
+			"span",
+			&[&("disabled", ""), &("width", "64")],
+		),
 		vec![Node::element(&ElementOptions {
 			tag: "span",
 			attrs: &[&("disabled", ""), &("width", "64")],
