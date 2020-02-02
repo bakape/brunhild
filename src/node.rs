@@ -444,7 +444,7 @@ impl Node {
 	fn new_id(&mut self) {
 		use std::sync::atomic::{AtomicU64, Ordering};
 
-		static COUNTER: AtomicU64 = AtomicU64::new(0);
+		static COUNTER: AtomicU64 = AtomicU64::new(1);
 		self.id = COUNTER.fetch_add(1, Ordering::Relaxed);
 	}
 
