@@ -50,11 +50,11 @@ static TOKENIZABLE_VALUES: [&'static str; 35] = [
 ];
 
 // Compressed attribute storage with manipulation functions
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct Attrs(BTreeMap<u16, Value>);
 
 // Contains a value stored in one of 2 storage methods for attribute values
-#[derive(PartialEq, Eq)]
+#[derive(PartialEq, Eq, Debug)]
 enum Value {
 	// Tokenized string value
 	StringToken(u16),

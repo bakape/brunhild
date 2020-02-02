@@ -64,7 +64,7 @@ impl fmt::Write for Appender {
 }
 
 // Lazily retrieves an element by its ID
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct LazyElement {
 	pub id: u64,
 	pub element: Option<web_sys::Element>,

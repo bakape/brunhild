@@ -7,6 +7,7 @@ use std::fmt;
 use wasm_bindgen::JsValue;
 
 // Internal contents of a text Node or Element
+#[derive(Debug)]
 enum NodeContents {
 	Text(String),
 	Element(ElementContents),
@@ -19,6 +20,7 @@ impl Default for NodeContents {
 }
 
 // Internal contents of an Element
+#[derive(Debug)]
 struct ElementContents {
 	// Token for the node's tag
 	tag: u16,
@@ -44,7 +46,7 @@ impl Default for ElementContents {
 
 // Node used for constructing DOM trees for applying patches and representing
 // the browser DOM state.
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct Node {
 	// ID of DOM element the node is representing. Can be 0 in nodes not yet
 	// patched into the DOM.
@@ -64,6 +66,7 @@ pub struct Node {
 // Options for constructing an Element Node. This struct has separate lifetimes
 // for each field, so that some of these can have static lifetimes and thus not
 // require runtime allocation.
+#[derive(Debug)]
 pub struct ElementOptions<'t, 'a> {
 	// Element HTML tag
 	pub tag: &'t str,
@@ -112,6 +115,7 @@ impl<'t, 'a> ElementOptions<'t, 'a> {
 }
 
 // Options for constructing a text Node
+#[derive(Debug)]
 pub struct TextOptions<'a> {
 	// HTML-escape inner text
 	pub escape: bool,
