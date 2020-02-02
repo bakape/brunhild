@@ -67,7 +67,7 @@ impl fmt::Write for Appender {
 #[derive(Default)]
 pub struct LazyElement {
 	pub id: u64,
-	element: Option<web_sys::Element>,
+	pub element: Option<web_sys::Element>,
 }
 
 impl LazyElement {

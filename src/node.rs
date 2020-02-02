@@ -158,6 +158,14 @@ impl Node {
 		}
 	}
 
+	// Mount Node as passed Element.
+	// Sets the element's ID attribute and takes ownership of Element.
+	pub fn mount_as(&mut self, el: web_sys::Element) -> Result<(), JsValue> {
+		el.set_outer_html(&self.html()?);
+		self.element.element = Some(el);
+		Ok(())
+	}
+
 	// Mount Node after as last child of parent
 	pub fn append_to(
 		&mut self,
