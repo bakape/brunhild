@@ -74,7 +74,7 @@ pub struct ElementOptions<'t, 'a> {
 	pub key: Option<u64>,
 
 	// List of element attributes
-	pub attributes: &'a [&'a (&'a str, &'a str)],
+	pub attrs: &'a [&'a (&'a str, &'a str)],
 }
 
 impl<'t, 'a> Default for ElementOptions<'t, 'a> {
@@ -82,7 +82,7 @@ impl<'t, 'a> Default for ElementOptions<'t, 'a> {
 		Self {
 			tag: "div",
 			key: None,
-			attributes: &[],
+			attrs: &[],
 		}
 	}
 }
@@ -122,7 +122,7 @@ impl Node {
 		Self {
 			contents: NodeContents::Element(ElementContents {
 				tag: tokenizer::tokenize(opts.tag),
-				attrs: super::attrs::Attrs::new(opts.attributes),
+				attrs: super::attrs::Attrs::new(opts.attrs),
 				..Default::default()
 			}),
 			key: opts.key,
@@ -136,7 +136,7 @@ impl Node {
 		Self {
 			contents: NodeContents::Element(ElementContents {
 				tag: tokenizer::tokenize(opts.tag),
-				attrs: super::attrs::Attrs::new(opts.attributes),
+				attrs: super::attrs::Attrs::new(opts.attrs),
 				children: children,
 			}),
 			key: opts.key,
@@ -479,7 +479,7 @@ fn create_element_node() {
 	#[allow(unused)]
 	let node = Node::element(&ElementOptions {
 		tag: "span",
-		attributes: &[
+		attrs: &[
 			&(
 				// Test long string allocators
 				"loooooooooooooooooooooooooooooooooooooooooooooooooooooong",
@@ -499,12 +499,12 @@ fn create_element_node_with_children() {
 	let node = Node::with_children(
 		&ElementOptions {
 			tag: "span",
-			attributes: &[&("disabled", ""), &("width", "64")],
+			attrs: &[&("disabled", ""), &("width", "64")],
 			..Default::default()
 		},
 		vec![Node::element(&ElementOptions {
 			tag: "span",
-			attributes: &[&("disabled", ""), &("width", "64")],
+			attrs: &[&("disabled", ""), &("width", "64")],
 			..Default::default()
 		})],
 	);
