@@ -157,7 +157,7 @@ impl util::WriteHTMLTo for Attrs {
 			match v {
 				Value::StringToken(v) => {
 					if *v != 0 {
-						tokenizer::get_value(*k, |s| write!(w, "=\"{}\"", s))?;
+						tokenizer::get_value(*v, |s| write!(w, "=\"{}\"", s))?;
 					}
 				}
 				Value::Untokenized(s) => {

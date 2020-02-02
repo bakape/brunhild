@@ -442,9 +442,10 @@ impl Node {
 
 	// Set new element ID on self
 	fn new_id(&mut self) {
-		static mut COUNTER: u64 = 0;
-		unsafe { COUNTER += 1 };
-		self.id = unsafe { COUNTER };
+		use std::sync::atomic::{AtomicU64, Ordering};
+
+		static COUNTER: AtomicU64 = AtomicU64::new(0);
+		self.id = COUNTER.fetch_add(1, Ordering::Relaxed);
 	}
 
 	// Ensure Node has an element ID set
@@ -500,10 +501,20 @@ impl util::WriteHTMLTo for Node {
 	}
 }
 
+#[cfg(test)]
+type TestResult = std::result::Result<(), JsValue>;
+
+#[cfg(test)]
+macro_rules! assert_html {
+	($node:expr, $fmt:expr, $($arg:expr),*) => {{
+		let res = $node.html()?; // Must execute first
+		assert_eq!(res, format!($fmt $(, $arg)*));
+		}};
+}
+
 #[test]
-fn create_element_node() {
-	#[allow(unused)]
-	let node = Node::element(&ElementOptions {
+fn element_node() -> TestResult {
+	let mut node = Node::element(&ElementOptions {
 		tag: "span",
 		attrs: &[
 			&(
@@ -517,32 +528,50 @@ fn create_element_node() {
 		],
 		..Default::default()
 	});
+	assert_html!(
+		node,
+		"<span id=\"bh-{}\" disabled width=\"64\" classes=\"class1 class2\" loooooooooooooooooooooooooooooooooooooooooooooooooooooong=\"caaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaat\"></span>",
+		node.id
+	);
+	Ok(())
 }
 
 #[test]
-fn create_element_node_with_children() {
-	#[allow(unused)]
-	let node = Node::with_children(
+fn element_node_with_children() -> TestResult {
+	let mut node = Node::with_children(
 		&ElementOptions::with_attrs(
 			"span",
 			&[&("disabled", ""), &("width", "64")],
 		),
 		vec![Node::element(&ElementOptions {
 			tag: "span",
-			attrs: &[&("disabled", ""), &("width", "64")],
+			attrs: &[&("class", "foo"), &("disabled", ""), &("width", "64")],
 			..Default::default()
 		})],
 	);
+	assert_html!(
+		node,
+		r#"<span id="bh-{}" disabled width="64"><span id="bh-{}" class="foo" disabled width="64"></span></span>"#,
+		node.id,
+		if let NodeContents::Element(el) = &node.contents {
+			el.children[0].id
+		} else {
+			0
+		}
+	);
+	Ok(())
 }
 
 #[test]
-fn create_text_node() {
-	let node = Node::text(&TextOptions {
+fn text_node() -> TestResult {
+	let mut node = Node::text(&TextOptions {
 		text: "<span>",
 		..Default::default()
 	});
-	match node.contents {
-		NodeContents::Text(t) => assert_eq!(&t, "&lt;span&gt;"),
+	match &node.contents {
+		NodeContents::Text(t) => assert_eq!(t, "&lt;span&gt;"),
 		_ => assert!(false),
 	};
+	assert_html!(node, r#"<span id="bh-{}">&lt;span&gt;</span>"#, node.id);
+	Ok(())
 }

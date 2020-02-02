@@ -327,7 +327,7 @@ impl ArrayString {
 
 impl AsRef<str> for ArrayString {
 	fn as_ref(&self) -> &str {
-		std::str::from_utf8(&self.arr).unwrap()
+		std::str::from_utf8(&self.arr[..self.length as usize]).unwrap()
 	}
 }
 
