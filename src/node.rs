@@ -186,26 +186,24 @@ impl Node {
 		}
 	}
 
-	// Mount Node as passed Element.
-	// Sets the element's ID attribute and takes ownership of Element.
-	pub fn mount_as(&mut self, el: web_sys::Element) -> Result<(), JsValue> {
+	// Mount Node as passed Element. Sets the element's ID attribute.
+	pub fn mount_as(&mut self, el: &web_sys::Element) -> Result<(), JsValue> {
 		el.set_outer_html(&self.html()?);
-		self.element.element = Some(el);
 		Ok(())
 	}
 
-	// Mount Node after as last child of parent
-	pub fn append_to(
+	// Mount Node as last child of parent
+	pub fn mount_append_to(
 		&mut self,
-		parent: web_sys::Element,
+		parent: &web_sys::Element,
 	) -> Result<(), JsValue> {
 		self.mount(parent, "beforeend")
 	}
 
-	// Mount Node after as first child of parent
-	pub fn prepend_to(
+	// Mount Node as first child of parent
+	pub fn mount_prepend_to(
 		&mut self,
-		parent: web_sys::Element,
+		parent: &web_sys::Element,
 	) -> Result<(), JsValue> {
 		self.mount(parent, "afterbegin")
 	}
@@ -213,7 +211,7 @@ impl Node {
 	// Mount Node after as previous sibling of parent
 	pub fn mount_before(
 		&mut self,
-		parent: web_sys::Element,
+		parent: &web_sys::Element,
 	) -> Result<(), JsValue> {
 		self.mount(parent, "beforebegin")
 	}
@@ -221,14 +219,14 @@ impl Node {
 	// Mount Node after as next sibling of parent
 	pub fn mount_after(
 		&mut self,
-		parent: web_sys::Element,
+		parent: &web_sys::Element,
 	) -> Result<(), JsValue> {
 		self.mount(parent, "afterend")
 	}
 
 	fn mount(
 		&mut self,
-		parent: web_sys::Element,
+		parent: &web_sys::Element,
 		mode: &str,
 	) -> Result<(), JsValue> {
 		parent.insert_adjacent_html(mode, &self.html()?)

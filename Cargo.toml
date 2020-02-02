@@ -1,6 +1,6 @@
 [package]
 name = "brunhild"
-version = "0.5.4"
+version = "0.5.5"
 authors = ["bakape <bakape@gmail.com>"]
 edition = "2018"
 description  = "experimental compressive Rust virtual DOM library"
