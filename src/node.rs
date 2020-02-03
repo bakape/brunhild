@@ -6,6 +6,50 @@ use std::collections::HashMap;
 use std::fmt;
 use wasm_bindgen::JsValue;
 
+// Creates a new element node
+#[macro_export]
+macro_rules! element {
+	($tag:expr) => {
+		$crate::element!{ $tag, {} }
+	};
+	($tag:expr, {$($key:expr => $val:expr,)*}) => {
+		$crate::element!{ $tag, {$($key => $val,)*}, [] }
+	};
+	($tag:expr, {$($key:expr => $val:expr,)*}, [$($child:expr,)*]) => {
+		$crate::Node::with_children(
+			&$crate::ElementOptions {
+				tag: $tag.as_ref(),
+				attrs: &[$(($key.as_ref(), $val.as_ref()),)*],
+				..Default::default()
+			},
+			vec![$($child),*],
+		)
+	};
+}
+
+// Creates a new text node
+#[macro_export]
+macro_rules! text {
+	($text:expr) => {
+		$crate::Node::text(&TextOptions {
+			text: $text.as_ref(),
+			..Default::default()
+			})
+	};
+}
+
+// Creates a new text node with HTML escaping
+#[macro_export]
+macro_rules! escaped {
+	($text:expr) => {
+		$crate::Node::text(&TextOptions {
+			text: $text.as_ref(),
+			escape: true,
+			..Default::default()
+			})
+	};
+}
+
 // Internal contents of a text Node or Element
 #[derive(Debug)]
 enum NodeContents {
@@ -77,7 +121,7 @@ pub struct ElementOptions<'t, 'a> {
 	pub key: Option<u64>,
 
 	// List of element attributes
-	pub attrs: &'a [&'a (&'a str, &'a str)],
+	pub attrs: &'a [(&'a str, &'a str)],
 }
 
 impl<'t, 'a> Default for ElementOptions<'t, 'a> {
@@ -86,30 +130,6 @@ impl<'t, 'a> Default for ElementOptions<'t, 'a> {
 			tag: "div",
 			key: None,
 			attrs: &[],
-		}
-	}
-}
-
-impl<'t, 'a> ElementOptions<'t, 'a> {
-	// Shorthand for constructing new element with nothing but a tag
-	#[inline]
-	pub fn new(tag: &'t str) -> ElementOptions<'t, 'a> {
-		ElementOptions {
-			tag: tag,
-			..Default::default()
-		}
-	}
-
-	// Shorthand for constructing new element with attributes
-	#[inline]
-	pub fn with_attrs(
-		tag: &'t str,
-		attrs: &'a [&'a (&'a str, &'a str)],
-	) -> ElementOptions<'t, 'a> {
-		ElementOptions {
-			tag: tag,
-			attrs: attrs,
-			..Default::default()
 		}
 	}
 }
@@ -140,22 +160,10 @@ impl<'a> Default for TextOptions<'a> {
 }
 
 impl Node {
-	// Create an Element Node.
-	//
-	// # Panics
-	//
-	// Setting element "id" attributes is not supported. Panics, if key == "id".
+	// Create an Element Node
 	#[inline]
 	pub fn element(opts: &ElementOptions) -> Self {
-		Self {
-			contents: NodeContents::Element(ElementContents {
-				tag: tokenizer::tokenize(opts.tag),
-				attrs: super::attrs::Attrs::new(opts.attrs),
-				..Default::default()
-			}),
-			key: opts.key,
-			..Default::default()
-		}
+		Self::with_children(opts, Vec::new())
 	}
 
 	// Create an Element Node with children
@@ -509,25 +517,28 @@ macro_rules! assert_html {
 	($node:expr, $fmt:expr, $($arg:expr),*) => {{
 		let res = $node.html()?; // Must execute first
 		assert_eq!(res, format!($fmt $(, $arg)*));
-		}};
+	}};
+}
+
+#[test]
+fn only_tag() -> TestResult {
+	let mut node = element!("span");
+	assert_html!(node, "<span id=\"bh-{}\"></span>", node.id);
+	Ok(())
 }
 
 #[test]
 fn element_node() -> TestResult {
-	let mut node = Node::element(&ElementOptions {
-		tag: "span",
-		attrs: &[
-			&(
-				// Test long string allocators
-				"loooooooooooooooooooooooooooooooooooooooooooooooooooooong",
+	let mut node = element!(
+		"span",
+		{
+			"loooooooooooooooooooooooooooooooooooooooooooooooooooooong" =>
 				"caaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaat",
-			),
-			&("classes", "class1 class2"),
-			&("disabled", ""),
-			&("width", "64"),
-		],
-		..Default::default()
-	});
+			"classes" => "class1 class2",
+			"disabled" => "",
+			"width" => "64",
+		}
+	);
 	assert_html!(
 		node,
 		"<span id=\"bh-{}\" disabled width=\"64\" classes=\"class1 class2\" loooooooooooooooooooooooooooooooooooooooooooooooooooooong=\"caaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaat\"></span>",
@@ -538,20 +549,24 @@ fn element_node() -> TestResult {
 
 #[test]
 fn element_node_with_children() -> TestResult {
-	let mut node = Node::with_children(
-		&ElementOptions::with_attrs(
-			"span",
-			&[&("disabled", ""), &("width", "64")],
-		),
-		vec![Node::element(&ElementOptions {
-			tag: "span",
-			attrs: &[&("class", "foo"), &("disabled", ""), &("width", "64")],
-			..Default::default()
-		})],
+	let mut node = element!(
+		"span",
+		{
+			"disabled" => "",
+			"width" => "64",
+		},
+		[
+			element!(
+				"span",
+				{
+					"class" => "foo",
+				}
+			),
+		]
 	);
 	assert_html!(
 		node,
-		r#"<span id="bh-{}" disabled width="64"><span id="bh-{}" class="foo" disabled width="64"></span></span>"#,
+		r#"<span id="bh-{}" disabled width="64"><span id="bh-{}" class="foo"></span></span>"#,
 		node.id,
 		if let NodeContents::Element(el) = &node.contents {
 			el.children[0].id
@@ -564,10 +579,7 @@ fn element_node_with_children() -> TestResult {
 
 #[test]
 fn text_node() -> TestResult {
-	let mut node = Node::text(&TextOptions {
-		text: "<span>",
-		..Default::default()
-	});
+	let mut node = escaped!("<span>");
 	match &node.contents {
 		NodeContents::Text(t) => assert_eq!(t, "&lt;span&gt;"),
 		_ => assert!(false),

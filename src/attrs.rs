@@ -68,7 +68,7 @@ impl Attrs {
 	// Create empty attribute map
 	// TODO: Make generic with Into
 	#[inline]
-	pub fn new(arr: &[&(&str, &str)]) -> Self {
+	pub fn new(arr: &[(&str, &str)]) -> Self {
 		Self(
 			arr.iter()
 				.map(|(key, val)| {
