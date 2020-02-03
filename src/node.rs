@@ -10,19 +10,41 @@ use wasm_bindgen::JsValue;
 #[macro_export]
 macro_rules! element {
 	($tag:expr) => {
-		$crate::element!{ $tag, {} }
+		$crate::element!{ $tag, &[], vec![]}
 	};
-	($tag:expr, {$($key:expr => $val:expr,)*}) => {
-		$crate::element!{ $tag, {$($key => $val,)*}, [] }
+	($tag:expr, {$($key:expr => $val:expr,)+}) => {
+		$crate::element!{ $tag, {$($key => $val,)+}, vec![] }
 	};
-	($tag:expr, {$($key:expr => $val:expr,)*}, [$($child:expr,)*]) => {
+	($tag:expr, {$($key:expr => $val:expr),+}) => {
+		$crate::element!{ $tag, {$($key => $val,)+}, vec![] }
+	};
+	($tag:expr, {$($key:expr => $val:expr,)+}, [$($child:expr,)+]) => {
+		$crate::element!{ $tag, {$($key => $val,)+}, vec![$($child,)+] }
+	};
+	($tag:expr, {$($key:expr => $val:expr),+}, [$($child:expr,)+]) => {
+		$crate::element!{ $tag, {$($key => $val,)+}, vec![$($child,)+] }
+	};
+	($tag:expr, {$($key:expr => $val:expr),+}, [$($child:expr),+]) => {
+		$crate::element!{ $tag, {$($key => $val,)+}, vec![$($child,)+] }
+	};
+	($tag:expr, {$($key:expr => $val:expr),+}, $children:expr) => {
+		$crate::element!{ $tag, {$($key => $val,)+}, $children }
+	};
+	($tag:expr, {$($key:expr => $val:expr,)+}, $children:expr) => {
+		$crate::element!{
+			$tag,
+			&[$(($key.as_ref(), $val.as_ref()),)+],
+			$children
+		}
+	};
+	($tag:expr, $attrs:expr, $children:expr) => {
 		$crate::Node::with_children(
 			&$crate::ElementOptions {
 				tag: $tag.as_ref(),
-				attrs: &[$(($key.as_ref(), $val.as_ref()),)*],
+				attrs: $attrs,
 				..Default::default()
 			},
-			vec![$($child),*],
+			$children
 		)
 	};
 }
@@ -561,6 +583,34 @@ fn element_node_with_children() -> TestResult {
 				{
 					"class" => "foo",
 				}
+			),
+		]
+	);
+	assert_html!(
+		node,
+		r#"<span id="bh-{}" disabled width="64"><span id="bh-{}" class="foo"></span></span>"#,
+		node.id,
+		if let NodeContents::Element(el) = &node.contents {
+			el.children[0].id
+		} else {
+			0
+		}
+	);
+	Ok(())
+}
+
+#[test]
+fn element_node_with_children_vec() -> TestResult {
+	let mut node = element!(
+		"span",
+		{
+			"disabled" => "",
+			"width" => "64",
+		},
+		vec![
+			element!(
+				"span",
+				{ "class" => "foo" }
 			),
 		]
 	);
